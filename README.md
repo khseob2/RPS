@@ -48,13 +48,12 @@ python main.py
 ## 팀원
  
 팀명: RPS
- 
-| 이름 | 역할 | GitHub |
-|------|------|--------|
-| 김화섭 | 팀장 | [@khseob2](https://github.com/khseob2) |
-| 최성민 | 개발 리드 | [@J0RMUN64ND](https://github.com/J0RMUN64ND) |
-| 서진서 | 문서 담당 | [@seojinseo123](https://github.com/seojinseo123) |
-| 김나영 | 리뷰·품질 담당 | [@doranayoung](https://github.com/doranayoung) |
+
+| 김화섭 | 최성민 | 서진서 | 김나영 |
+| :---: | :---: | :---: | :---: |
+| <img src="https://avatars.githubusercontent.com/u/128239564?v=4" width="100"> | <img src="https://avatars.githubusercontent.com/u/122214932?v=4" width="100"> | <img src="https://avatars.githubusercontent.com/u/327731732?v=4" width="100"> | <img src="https://avatars.githubusercontent.com/u/171122875?v=4" width="100"> |
+| 팀장 | 개발 리드 | 문서 담당 | 리뷰·품질 담당 |
+| [@khseob2](https://github.com/khseob2) | [@J0RMUN64ND](https://github.com/J0RMUN64ND) | [@seojinseo123](https://github.com/seojinseo123) | [@doranayoung](https://github.com/doranayoung) |
  
  
 ## 라이선스
