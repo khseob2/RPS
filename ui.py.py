@@ -3,6 +3,12 @@ import cv2
 WINDOW_NAME = "HandClash"
 QUIT_KEYS = (ord("q"), 27)  # q, ESC
 
+# 색은 OpenCV 기준 BGR 순서
+WHITE = (255, 255, 255)
+P1_COLOR = (255, 160, 60)   # 파랑 계열
+P2_COLOR = (80, 80, 255)    # 빨강 계열
+FONT = cv2.FONT_HERSHEY_SIMPLEX
+
 
 def open_camera(index=0):
     """웹캠을 열어 VideoCapture 객체를 돌려준다. 못 열면 RuntimeError."""
@@ -21,6 +27,22 @@ def show_frame(frame):
 def should_quit(key):
     """종료 키(q, ESC)가 눌렸는지 확인한다."""
     return key in QUIT_KEYS
+
+
+def get_center_x(frame):
+    """화면 가운데 x좌표. 손목 x가 이 값보다 작으면 P1, 크면 P2로 나눈다."""
+    return frame.shape[1] // 2
+
+
+def draw_split_screen(frame):
+    """가운데 세로선과 P1/P2 라벨을 그린다. 같은 frame에 그려서 돌려준다."""
+    h, w = frame.shape[:2]
+    center_x = get_center_x(frame)
+ 
+    cv2.line(frame, (center_x, 0), (center_x, h), WHITE, 2)
+    cv2.putText(frame, "P1", (20, 40), FONT, 1.2, P1_COLOR, 3)
+    cv2.putText(frame, "P2", (center_x + 20, 40), FONT, 1.2, P2_COLOR, 3)
+    return frame
 
 
 if __name__ == "__main__":
