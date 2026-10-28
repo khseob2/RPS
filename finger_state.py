@@ -1,6 +1,25 @@
 
 # MediaPipe 손가락 펼침/접힘 상태 판별
 
+# 손가락 상태를 이용한 가위바위보 판정
+def classify_rps(states):
+    index = states["index"]
+    middle = states["middle"]
+    ring = states["ring"]
+    pinky = states["pinky"]
+
+    if not index and not middle and not ring and not pinky:
+        return "Rock"
+
+    elif index and middle and not ring and not pinky:
+        return "Scissors"
+
+    elif index and middle and ring and pinky:
+        return "Paper"
+
+    else:
+        return "Unknown"
+
 def detect_finger_states(landmarks):
     # 손가락 끝과 중간 관절 번호
     fingers = {
@@ -9,6 +28,7 @@ def detect_finger_states(landmarks):
         "ring": (16, 14),
         "pinky": (20, 18)
     }
+
 
     states = {}
 
