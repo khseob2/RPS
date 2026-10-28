@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# MediaPipe 의 학습된 ai 모델 파일
+.hand_lanmarker.task
