@@ -21,7 +21,7 @@ def start_records():
 
 def append_records(game_id, round, p1_hand, p2_hand, result):
     """결과를 csv파일에 추가하고 바로 저장하는 함수"""
-    with open(records_path, "a", newline="", encoding="uft-8") as file:
+    with open(records_path, "a", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
         writer.writerow([game_id, round, p1_hand, p2_hand, result])
         file.flush()
@@ -47,7 +47,7 @@ def calculate_hand_stats():
         for row in reader:
             p1_hand = row["p1_hand"].strip().lower()
             p2_hand = row["p2_hand"].strip().lower()
-            result = row["result"].strip.upper()
+            result = row["result"].strip().upper()
 
             if p1_hand in HANDS:
                 stats["P1"][p1_hand]["count"] += 1
@@ -81,7 +81,7 @@ def generate_report():
     total_games = {"P1": 0, "P2": 0}
     total_wins = {"P1": 0, "P2": 0}
 
-    with open(records_path, "r", newline="", encoding="utf-8-sig") as file:
+    with open(records_path, "r", newline="", encoding="utf-8") as file:
         reader = csv.DictReader(file)
 
         for row in reader:
