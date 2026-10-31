@@ -15,6 +15,15 @@ YELLOW = (0, 220, 255)
 P1_COLOR = (255, 160, 60)   # 파랑 계열
 P2_COLOR = (80, 80, 255)    # 빨강 계열
 FONT = cv2.FONT_HERSHEY_SIMPLEX
+
+
+# 손모양 이름
+HAND_NAMES = {
+    "rock", "paper", "scissors",
+}
+# 판정 결과: "P1"(P1 승), "P2"(P2 승), "DRAW"(무승부)
+RESULT_TEXT = {"P1": "P1 WIN", "P2": "P2 WIN", "DRAW": "DRAW"}
+RESULT_COLOR = {"P1": P1_COLOR, "P2": P2_COLOR, "DRAW": YELLOW}
  
  
 def open_camera(index=0):
@@ -125,12 +134,64 @@ def draw_scoreboard(frame, p1_score, p2_score, round_no, best_of=3):
     cv2.putText(frame, "P2", (w - 70, top + 70), FONT, 1.0, P2_COLOR, 3)
     return frame
 
+
+def get_hand_name(hand):
+    """손모양 값을 화면에 그릴 영어 이름으로 바꾼다. 없으면 "-", 모르는 값이면 "?"."""
+    if hand is None:
+        return "-"
+    return HAND_NAMES.get(str(hand).strip().lower(), "?")
+
+
+def draw_message(frame, text, color=WHITE, scale=1.5):
+    """화면 정중앙에 안내 문구를 그린다. (예: "Show both hands!")"""
+    h, w = frame.shape[:2]
+    _put_centered(frame, text, w // 2, h // 2, scale, color, 3)
+    return frame
+
+
+def draw_round_result(frame, p1_hand, p2_hand, result):
+    """한 판의 결과를 화면 가운데에 그린다.
+
+    p1_hand, p2_hand: "rock" / "paper" / "scissors" (또는 "바위" / "보" / "가위"), 없으면 None
+    result: "P1", "P2", "DRAW"  (None이면 결과 없음 → 안내 문구만 그린다)
+    각 플레이어 영역 가운데에 손모양, 화면 정중앙에 승패를 크게 보여 준다.
+    """
+    if result not in RESULT_TEXT:
+        return draw_message(frame, "Show both hands!", YELLOW)
+
+    h, w = frame.shape[:2]
+    center_x = get_center_x(frame)
+    mid_y = h // 2
+
+    # 글자가 잘 보이도록 반투명 검은 띠
+    overlay = frame.copy()
+    cv2.rectangle(overlay, (0, mid_y - 120), (w, mid_y + 110), BLACK, -1)
+    cv2.addWeighted(overlay, 0.55, frame, 0.45, 0, frame)
+
+    _put_centered(frame, get_hand_name(p1_hand), center_x // 2, mid_y - 40, 1.6, P1_COLOR, 4)
+    _put_centered(frame, get_hand_name(p2_hand), center_x + center_x // 2, mid_y - 40, 1.6, P2_COLOR, 4)
+    _put_centered(frame, RESULT_TEXT[result], center_x, mid_y + 70, 2.8, RESULT_COLOR[result], 8)
+    return frame
+
  
 if __name__ == "__main__":
     # 혼자 실행해서 화면이 뜨는지 확인하는 테스트용 코드
-    #   SPACE: 카운트다운 시작 / 1: P1 점수 +1 / 2: P2 점수 +1 / n: 다음 라운드 / r: 초기화
+    #   SPACE: 한 판 시작(카운트다운 → 랜덤 손모양 → 결과 표시 → 점수 갱신)
+    #   r: 초기화 / q: 종료
+    import random
+
+    def demo_judge(a, b):
+            """테스트용 판정. 실제 판정은 game.py가 한다."""
+            if a == b:
+                return "DRAW"
+            return "P1" if (a, b) in (("rock", "scissors"), ("scissors", "paper"), ("paper", "rock")) else "P2"
+
+    RESULT_SHOW_SECONDS = 2
+    BEST_OF = 3
+    
     cap = open_camera()
     countdown_start = None
+    result_info = None          # (p1_hand, p2_hand, result, 보여 주기 시작한 시각)
     p1_score, p2_score, round_no = 0, 0, 1
     while True:
         ok, frame = cap.read()
@@ -143,18 +204,23 @@ if __name__ == "__main__":
         if countdown_start is not None:
             text = get_countdown_text(countdown_start)
             frame = draw_countdown(frame, text)
-            if text is None:
+            if text is None:  # 카운트다운 끝 → 판정
                 countdown_start = None
+                a, b = random.choice(["rock", "paper", "scissors"]), random.choice(["rock", "paper", "scissors"])
+                res = demo_judge(a, b)
+                p1_score += res == "P1"
+                p2_score += res == "P2"
+                result_info = (a, b, res, time.time())
+
+        if result_info is not None:
+            frame = draw_round_result(frame, *result_info[:3])
+            if time.time() - result_info[3] >= RESULT_SHOW_SECONDS:
+                result_info = None
+                round_no += 1
 
         key = show_frame(frame)
-        if key == ord(" "):
-            countdown_start = start_countdown()
-        elif key == ord("1"):
-            p1_score += 1
-        elif key == ord("2"):
-            p2_score += 1
-        elif key == ord("n"):
-            round_no += 1
+        if key == ord(" ") and countdown_start is None and result_info is None:
+            countdown_start = start_countdown() 
         elif key == ord("r"):
             p1_score, p2_score, round_no = 0, 0, 1
         if should_quit(key):
