@@ -9,16 +9,22 @@ def classify_rps(states):
     pinky = states["pinky"]
 
     if not index and not middle and not ring and not pinky:
-        return "Rock"
+        return "rock"
 
     elif index and middle and not ring and not pinky:
-        return "Scissors"
+        return "scissors"
 
     elif index and middle and ring and pinky:
-        return "Paper"
+        return "paper"
 
     else:
-        return "Unknown"
+        return None
+
+def classify_hand(landmarks):
+    if landmarks is None or len(landmarks) < 21:
+        return None
+    states = detect_finger_states(landmarks)
+    return classify_rps(states)
 
 def detect_finger_states(landmarks):
     # 손가락 끝과 중간 관절 번호
@@ -69,6 +75,12 @@ if __name__ == "__main__":
     points[6].y = 0.3
 
     result = detect_finger_states(points)
+    gesture = classify_hand(points)
+    print("가위바위보 판정:", gesture)
 
     for finger, extended in result.items():
         print(f"{finger}: {'펴짐' if extended else '접힘'}")
+
+    print("손 인식 실패:", classify_hand(None))
+    print("빈 랜드마크:", classify_hand([]))
+    print("랜드마크 부족:", classify_hand(points[:10]))
