@@ -21,6 +21,8 @@ def classify_rps(states):
         return None
 
 def classify_hand(landmarks):
+    if landmarks is None or len(landmarks) < 21:
+        return None
     states = detect_finger_states(landmarks)
     return classify_rps(states)
 
@@ -73,6 +75,12 @@ if __name__ == "__main__":
     points[6].y = 0.3
 
     result = detect_finger_states(points)
+    gesture = classify_hand(points)
+    print("가위바위보 판정:", gesture)
 
     for finger, extended in result.items():
         print(f"{finger}: {'펴짐' if extended else '접힘'}")
+
+    print("손 인식 실패:", classify_hand(None))
+    print("빈 랜드마크:", classify_hand([]))
+    print("랜드마크 부족:", classify_hand(points[:10]))
