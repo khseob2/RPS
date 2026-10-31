@@ -19,13 +19,18 @@ FONT = cv2.FONT_HERSHEY_SIMPLEX
 
 # 손모양 이름
 HAND_NAMES = {
-    "rock", "paper", "scissors",
+    "rock": "Rock", "paper": "Paper", "scissors": "Scissors",
 }
 # 판정 결과: "P1"(P1 승), "P2"(P2 승), "DRAW"(무승부)
 RESULT_TEXT = {"P1": "P1 WIN", "P2": "P2 WIN", "DRAW": "DRAW"}
 RESULT_COLOR = {"P1": P1_COLOR, "P2": P2_COLOR, "DRAW": YELLOW}
- 
- 
+
+BEST_OF_CHOICES = (3, 5, 7)   # 고를 수 있는 판수
+BUTTON_COLOR = (50, 50, 50)    # 버튼 바탕색(진한 회색)
+
+_clicks = []  # 마우스로 클릭한 좌표가 쌓이는 곳 (내부용)
+
+
 def open_camera(index=0):
     """웹캠을 열어 VideoCapture 객체를 돌려준다. 못 열면 RuntimeError."""
     cap = cv2.VideoCapture(index)
@@ -136,7 +141,7 @@ def draw_scoreboard(frame, p1_score, p2_score, round_no, best_of=3):
 
 
 def get_hand_name(hand):
-    """손모양 값을 화면에 그릴 영어 이름으로 바꾼다. 없으면 "-", 모르는 값이면 "?"."""
+    """손모양 값("rock" / "paper" / "scissors")을 화면에 그릴 글자로 바꾼다. 없으면 "-", 모르는 값이면 "?"."""
     if hand is None:
         return "-"
     return HAND_NAMES.get(str(hand).strip().lower(), "?")
@@ -152,7 +157,7 @@ def draw_message(frame, text, color=WHITE, scale=1.5):
 def draw_round_result(frame, p1_hand, p2_hand, result):
     """한 판의 결과를 화면 가운데에 그린다.
 
-    p1_hand, p2_hand: "rock" / "paper" / "scissors" (또는 "바위" / "보" / "가위"), 없으면 None
+    p1_hand, p2_hand: "rock" / "paper" / "scissors" (소문자), 손이 없으면 None
     result: "P1", "P2", "DRAW"  (None이면 결과 없음 → 안내 문구만 그린다)
     각 플레이어 영역 가운데에 손모양, 화면 정중앙에 승패를 크게 보여 준다.
     """
@@ -173,23 +178,116 @@ def draw_round_result(frame, p1_hand, p2_hand, result):
     _put_centered(frame, RESULT_TEXT[result], center_x, mid_y + 70, 2.8, RESULT_COLOR[result], 8)
     return frame
 
- 
+
+def _on_mouse(event, x, y, flags, param):
+    """마우스 왼쪽 버튼을 누르면 그 좌표를 기록한다. (내부용, OpenCV가 대신 불러 준다)"""
+    if event == cv2.EVENT_LBUTTONDOWN:
+        _clicks.append((x, y))
+
+
+def enable_mouse():
+    """창을 만들고 마우스 클릭을 받기 시작한다. 반복문 시작 전에 한 번만 부른다."""
+    cv2.namedWindow(WINDOW_NAME)
+    cv2.setMouseCallback(WINDOW_NAME, _on_mouse)
+
+
+def get_click():
+    """마지막으로 클릭한 좌표 (x, y)를 돌려준다. 클릭이 없었으면 None.
+
+    한 번 읽으면 지워지므로, 한 프레임에 한 번만 불러서 변수에 담아 쓴다.
+    """
+    if not _clicks:
+        return None
+    click = _clicks[-1]
+    _clicks.clear()
+    return click
+
+
+def make_button(label, x, y, w, h):
+    """버튼 하나를 만든다. (x, y)는 왼쪽 위 꼭짓점, w·h는 너비·높이."""
+    return {"label": label, "rect": (x, y, x + w, y + h)}
+
+
+def is_clicked(button, click):
+    """클릭 좌표가 버튼 사각형 안에 있으면 True. click이 None이면 False."""
+    if click is None:
+        return False
+    x, y = click
+    x1, y1, x2, y2 = button["rect"]
+    return x1 <= x <= x2 and y1 <= y <= y2
+
+
+def draw_button(frame, button, color=WHITE):
+    """버튼을 그린다: 회색 바탕 + 색 테두리 + 가운데 글자."""
+    x1, y1, x2, y2 = button["rect"]
+    cv2.rectangle(frame, (x1, y1), (x2, y2), BUTTON_COLOR, -1)
+    cv2.rectangle(frame, (x1, y1), (x2, y2), color, 3)
+
+    scale = (y2 - y1) / 50   # 버튼 높이에 맞춰 글자 크기를 정한다
+    thickness = max(2, int(scale * 2))
+    (text_w, text_h), _ = cv2.getTextSize(button["label"], FONT, scale, thickness)
+    text_x = (x1 + x2 - text_w) // 2
+    text_y = (y1 + y2 + text_h) // 2
+    cv2.putText(frame, button["label"], (text_x, text_y), FONT, scale, color, thickness)
+    return frame
+
+
+def get_best_of_buttons(frame):
+    """판수 선택 버튼 3개(3, 5, 7)를 화면 가운데에 가로로 놓은 버튼 리스트."""
+    h, w = frame.shape[:2]
+    size = min(w, h) // 5      # 정사각형 버튼 한 변
+    gap = size // 3
+    left = (w - (size * 3 + gap * 2)) // 2
+    top = h // 2 - size // 2
+    return [make_button(str(n), left + i * (size + gap), top, size, size)
+            for i, n in enumerate(BEST_OF_CHOICES)]
+
+
+def draw_best_of_select(frame):
+    """판수 선택 화면: 위에 안내 문구, 가운데 3 / 5 / 7 버튼, 아래에 설명."""
+    h, w = frame.shape[:2]
+    buttons = get_best_of_buttons(frame)
+    top = buttons[0]["rect"][1]
+    bottom = buttons[0]["rect"][3]
+
+    # 글자와 버튼이 잘 보이도록 반투명 검은 띠
+    overlay = frame.copy()
+    cv2.rectangle(overlay, (0, top - 70), (w, bottom + 70), BLACK, -1)
+    cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
+
+    _put_centered(frame, "Click to choose rounds", w // 2, top - 30, 1.0, WHITE, 2)
+    for button in buttons:
+        draw_button(frame, button, YELLOW)
+    _put_centered(frame, "Best of 3 / 5 / 7", w // 2, bottom + 45, 0.8, WHITE, 2)
+    return frame
+
+
+def get_clicked_best_of(frame, click):
+    """판수 버튼을 눌렀으면 그 판수(3, 5, 7)를, 아니면 None을 돌려준다."""
+    for best_of, button in zip(BEST_OF_CHOICES, get_best_of_buttons(frame)):
+        if is_clicked(button, click):
+            return best_of
+    return None
+
+
 if __name__ == "__main__":
-    # 혼자 실행해서 화면이 뜨는지 확인하는 테스트용 코드
-    #   SPACE: 한 판 시작(카운트다운 → 랜덤 손모양 → 결과 표시 → 점수 갱신)
-    #   r: 초기화 / q: 종료
+    # 혼자 실행해서 화면이 뜨는지 확인하는 테스트용 코드 (나중에는 game.py/main.py가 이 역할을 한다)
+    #   판수 버튼 클릭 → SPACE: 한 판 시작 → 누가 먼저 필요 승수에 닿으면 게임 끝
+    #   r: 판수 선택으로 돌아가기 / q: 종료
     import random
 
     def demo_judge(a, b):
-            """테스트용 판정. 실제 판정은 game.py가 한다."""
-            if a == b:
-                return "DRAW"
-            return "P1" if (a, b) in (("rock", "scissors"), ("scissors", "paper"), ("paper", "rock")) else "P2"
+        """테스트용 판정. 실제 판정은 game.py가 한다."""
+        if a == b:
+            return "DRAW"
+        return "P1" if (a, b) in (("rock", "scissors"), ("scissors", "paper"), ("paper", "rock")) else "P2"
 
     RESULT_SHOW_SECONDS = 2
-    BEST_OF = 3
-    
+
     cap = open_camera()
+    enable_mouse()
+    state = "SELECT"            # SELECT → PLAY → OVER
+    best_of = 3
     countdown_start = None
     result_info = None          # (p1_hand, p2_hand, result, 보여 주기 시작한 시각)
     p1_score, p2_score, round_no = 0, 0, 1
@@ -199,30 +297,46 @@ if __name__ == "__main__":
             break
         frame = cv2.flip(frame, 1)  # 거울처럼 좌우 반전
         frame = draw_split_screen(frame)
-        frame = draw_scoreboard(frame, p1_score, p2_score, round_no, best_of=3)
+        click = get_click()
 
-        if countdown_start is not None:
-            text = get_countdown_text(countdown_start)
-            frame = draw_countdown(frame, text)
-            if text is None:  # 카운트다운 끝 → 판정
-                countdown_start = None
-                a, b = random.choice(["rock", "paper", "scissors"]), random.choice(["rock", "paper", "scissors"])
-                res = demo_judge(a, b)
-                p1_score += res == "P1"
-                p2_score += res == "P2"
-                result_info = (a, b, res, time.time())
+        if state == "SELECT":
+            frame = draw_best_of_select(frame)
+            chosen = get_clicked_best_of(frame, click)
+            if chosen is not None:
+                best_of, state = chosen, "PLAY"
+                p1_score, p2_score, round_no = 0, 0, 1
 
-        if result_info is not None:
-            frame = draw_round_result(frame, *result_info[:3])
-            if time.time() - result_info[3] >= RESULT_SHOW_SECONDS:
-                result_info = None
-                round_no += 1
+        elif state == "PLAY":
+            frame = draw_scoreboard(frame, p1_score, p2_score, round_no, best_of)
+            if countdown_start is not None:
+                text = get_countdown_text(countdown_start)
+                frame = draw_countdown(frame, text)
+                if text is None:  # 카운트다운 끝 → 판정
+                    countdown_start = None
+                    a, b = random.choice(["rock", "paper", "scissors"]), random.choice(["rock", "paper", "scissors"])
+                    res = demo_judge(a, b)
+                    p1_score += res == "P1"
+                    p2_score += res == "P2"
+                    result_info = (a, b, res, time.time())
+
+            if result_info is not None:
+                frame = draw_round_result(frame, *result_info[:3])
+                if time.time() - result_info[3] >= RESULT_SHOW_SECONDS:
+                    result_info = None
+                    round_no += 1
+                    if max(p1_score, p2_score) >= best_of // 2 + 1:
+                        state = "OVER"
+
+        elif state == "OVER":
+            frame = draw_scoreboard(frame, p1_score, p2_score, round_no - 1, best_of)
+            winner = "P1" if p1_score > p2_score else "P2"
+            frame = draw_message(frame, f"{winner} WINS!  (r: restart)", RESULT_COLOR[winner])
 
         key = show_frame(frame)
-        if key == ord(" ") and countdown_start is None and result_info is None:
+        if key == ord(" ") and state == "PLAY" and countdown_start is None and result_info is None:
             countdown_start = start_countdown() 
         elif key == ord("r"):
-            p1_score, p2_score, round_no = 0, 0, 1
+            state, countdown_start, result_info = "SELECT", None, None
         if should_quit(key):
             break
     cap.release()
