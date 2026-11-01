@@ -28,6 +28,23 @@ def judge(p1_hand, p2_hand):
     return "P2"
 
 
+def wins_needed(best_of):
+    """판수(3·5·7)에서 이기는 데 필요한 승수를 돌려준다."""
+    return best_of // 2 + 1
+
+
+class Match:
+    """판수(3·5·7)를 정해서 진행하는 한 게임."""
+
+    def __init__(self, best_of=3):
+        if best_of not in (3, 5, 7):
+            raise ValueError(f"판수는 3, 5, 7 중 하나여야 합니다: {best_of!r}")
+        self.best_of = best_of
+        self.p1_score = 0
+        self.p2_score = 0
+        self.round_no = 1
+
+
 if __name__ == "__main__":
     cases = [
         ("rock", "rock", "DRAW"),
@@ -49,3 +66,12 @@ if __name__ == "__main__":
         result = judge(p1, p2)
         mark = "OK" if result == expected else "FAIL"
         print(f"[{mark}] {str(p1):>8} vs {str(p2):<8} -> {result}")
+
+    print()
+    for n in (3, 5, 7):
+        m = Match(n)
+        print(f"{n}판 -> {wins_needed(n)}선승, 점수 {m.p1_score}:{m.p2_score}, Round {m.round_no}")
+    try:
+        Match(4)
+    except ValueError as e:
+        print(f"[OK] Match(4) -> {e}")
