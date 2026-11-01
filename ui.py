@@ -270,9 +270,49 @@ def get_clicked_best_of(frame, click):
     return None
 
 
+def get_quit_button(frame):
+    """게임 종료(QUIT) 버튼: 화면 오른쪽 위."""
+    h, w = frame.shape[:2]
+    button_w, button_h = max(90, w // 8), max(36, h // 12)
+    return make_button("QUIT", w - button_w - 15, 15, button_w, button_h)
+
+
+def draw_quit_button(frame):
+    """게임 종료 버튼을 그린다."""
+    return draw_button(frame, get_quit_button(frame), P2_COLOR)
+
+
+def is_quit_clicked(frame, click):
+    """게임 종료 버튼을 눌렀으면 True."""
+    return is_clicked(get_quit_button(frame), click)
+
+
+def draw_game_over(frame, winner, p1_score, p2_score):
+    """게임이 끝났을 때 최종 결과를 그린다.
+
+    winner: "P1", "P2", "DRAW" (누가 이겼는지는 game.py가 정해서 넘겨준다)
+    p1_score, p2_score: 최종 점수
+    """
+    h, w = frame.shape[:2]
+    center_x = get_center_x(frame)
+    mid_y = h // 2
+
+    overlay = frame.copy()
+    cv2.rectangle(overlay, (0, mid_y - 150), (w, mid_y + 120), BLACK, -1)
+    cv2.addWeighted(overlay, 0.65, frame, 0.35, 0, frame)
+
+    title = "DRAW" if winner == "DRAW" else f"{winner} WINS!"
+    _put_centered(frame, "GAME OVER", center_x, mid_y - 90, 1.2, WHITE, 3)
+    _put_centered(frame, title, center_x, mid_y, 2.4, RESULT_COLOR.get(winner, WHITE), 6)
+    _put_centered(frame, f"{p1_score}", center_x - 60, mid_y + 80, 1.6, P1_COLOR, 4)
+    _put_centered(frame, ":", center_x, mid_y + 75, 1.4, WHITE, 3)
+    _put_centered(frame, f"{p2_score}", center_x + 60, mid_y + 80, 1.6, P2_COLOR, 4)
+    return frame
+
+
 if __name__ == "__main__":
     # 혼자 실행해서 화면이 뜨는지 확인하는 테스트용 코드 (나중에는 game.py/main.py가 이 역할을 한다)
-    #   판수 버튼 클릭 → SPACE: 한 판 시작 → 누가 먼저 필요 승수에 닿으면 게임 끝
+    #   판수 버튼 클릭 → SPACE: 한 판 시작 → 누가 먼저 필요 승수에 닿거나 QUIT 버튼을 누르면 게임 끝
     #   r: 판수 선택으로 돌아가기 / q: 종료
     import random
 
@@ -308,6 +348,9 @@ if __name__ == "__main__":
 
         elif state == "PLAY":
             frame = draw_scoreboard(frame, p1_score, p2_score, round_no, best_of)
+            frame = draw_quit_button(frame)
+            if is_quit_clicked(frame, click):  # 중간 종료 → 지금까지의 점수로 끝
+                state, countdown_start, result_info = "OVER", None, None
             if countdown_start is not None:
                 text = get_countdown_text(countdown_start)
                 frame = draw_countdown(frame, text)
@@ -319,7 +362,7 @@ if __name__ == "__main__":
                     p2_score += res == "P2"
                     result_info = (a, b, res, time.time())
 
-            if result_info is not None:
+            if state == "PLAY" and result_info is not None:
                 frame = draw_round_result(frame, *result_info[:3])
                 if time.time() - result_info[3] >= RESULT_SHOW_SECONDS:
                     result_info = None
@@ -328,9 +371,13 @@ if __name__ == "__main__":
                         state = "OVER"
 
         elif state == "OVER":
-            frame = draw_scoreboard(frame, p1_score, p2_score, round_no - 1, best_of)
-            winner = "P1" if p1_score > p2_score else "P2"
-            frame = draw_message(frame, f"{winner} WINS!  (r: restart)", RESULT_COLOR[winner])
+            # 테스트용 승자 판별 (실제로는 game.py가 정한다). 동점이면 DRAW
+            if p1_score == p2_score:
+                winner = "DRAW"
+            else:
+                winner = "P1" if p1_score > p2_score else "P2"
+            frame = draw_game_over(frame, winner, p1_score, p2_score)
+            _put_centered(frame, "r: restart / q: quit", get_center_x(frame), frame.shape[0] - 30, 0.8, WHITE, 2)
 
         key = show_frame(frame)
         if key == ord(" ") and state == "PLAY" and countdown_start is None and result_info is None:
