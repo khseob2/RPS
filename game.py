@@ -44,6 +44,20 @@ class Match:
         self.p2_score = 0
         self.round_no = 1
 
+    def add_round(self, result):
+        """judge() 결과를 받아 점수와 라운드를 갱신한다.
+
+        None이면 아무것도 바꾸지 않는다(같은 라운드를 다시 한다).
+        DRAW면 점수는 그대로 두고 다음 라운드로 넘어간다.
+        """
+        if result is None:
+            return
+        if result == "P1":
+            self.p1_score += 1
+        elif result == "P2":
+            self.p2_score += 1
+        self.round_no += 1
+
 
 if __name__ == "__main__":
     cases = [
@@ -75,3 +89,9 @@ if __name__ == "__main__":
         Match(4)
     except ValueError as e:
         print(f"[OK] Match(4) -> {e}")
+
+    print()
+    m = Match(3)
+    for r in ["P1", None, "DRAW", "P2", "P1"]:
+        m.add_round(r)
+        print(f"{str(r):>4} -> 점수 {m.p1_score}:{m.p2_score}, Round {m.round_no}")
