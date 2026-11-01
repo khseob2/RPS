@@ -15,11 +15,11 @@ def judge(p1_hand, p2_hand):
     """두 손모양을 비교해서 라운드 승패를 돌려준다.
 
     반환: "P1" | "P2" | "DRAW" | None
-    - 한쪽이라도 None(손 없음/판별 불가)이면 None을 돌려준다.
+    - 한쪽이라도 None이거나 정해진 값이 아니면 None을 돌려준다.
       이때는 점수를 올리지 않고 같은 라운드를 다시 한다.
     - 결과는 ui.draw_round_result()와 records에 그대로 넘긴다.
     """
-    if p1_hand is None or p2_hand is None:
+    if p1_hand not in BEATS or p2_hand not in BEATS:
         return None
     if p1_hand == p2_hand:
         return "DRAW"
@@ -42,6 +42,8 @@ if __name__ == "__main__":
         (None, "rock", None),
         ("paper", None, None),
         (None, None, None),
+        ("Rock", "scissors", None),
+        ("rock", "", None),
     ]
     for p1, p2, expected in cases:
         result = judge(p1, p2)
