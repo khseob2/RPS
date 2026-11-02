@@ -49,14 +49,30 @@ class Match:
 
         None이면 아무것도 바꾸지 않는다(같은 라운드를 다시 한다).
         DRAW면 점수는 그대로 두고 다음 라운드로 넘어간다.
+        게임이 이미 끝났으면 무시한다.
         """
-        if result is None:
+        if result is None or self.is_over:
             return
         if result == "P1":
             self.p1_score += 1
         elif result == "P2":
             self.p2_score += 1
         self.round_no += 1
+
+    @property
+    def winner(self):
+        """선승한 플레이어("P1"/"P2"). 아직 없으면 None."""
+        need = wins_needed(self.best_of)
+        if self.p1_score >= need:
+            return "P1"
+        if self.p2_score >= need:
+            return "P2"
+        return None
+
+    @property
+    def is_over(self):
+        """게임이 끝났는지 여부."""
+        return self.winner is not None
 
 
 if __name__ == "__main__":
@@ -94,4 +110,7 @@ if __name__ == "__main__":
     m = Match(3)
     for r in ["P1", None, "DRAW", "P2", "P1"]:
         m.add_round(r)
-        print(f"{str(r):>4} -> 점수 {m.p1_score}:{m.p2_score}, Round {m.round_no}")
+        print(f"{str(r):>4} -> 점수 {m.p1_score}:{m.p2_score}, Round {m.round_no}, 종료 {m.is_over}")
+    print(f"승자: {m.winner}")
+    m.add_round("P2")
+    print(f"종료 후 P2 입력 -> 점수 {m.p1_score}:{m.p2_score} (변화 없어야 함)")
