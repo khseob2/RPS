@@ -46,13 +46,13 @@ def detect_finger_states(landmarks):
         pip = landmarks[pip_id]
 
         tip_dist = (
-            (tip.x - wrist.x) ** 2
-            + (tip.y - wrist.y) ** 2
+            (tip[0] - wrist[0]) ** 2
+            + (tip[1] - wrist[1]) ** 2
         )
 
         pip_dist = (
-            (pip.x - wrist.x) ** 2
-            + (pip.y - wrist.y) ** 2
+            (pip[0] - wrist[0]) ** 2
+            + (pip[1] - wrist[1]) ** 2
         )
 
         states[name] = tip_dist > pip_dist
@@ -62,17 +62,16 @@ def detect_finger_states(landmarks):
 
 # 간단한 동작 테스트
 if __name__ == "__main__":
-    from types import SimpleNamespace
-
+    
     # 테스트용 가상 랜드마크
     points = [
-        SimpleNamespace(x=0.5, y=0.5)
+        (0.5, 0.5, 0.0)
         for _ in range(21)
     ]
 
     # 검지만 펼친 상태를 가정
-    points[8].y = 0.1
-    points[6].y = 0.3
+    points[8] = (0.5, 0.1, 0.0)
+    points[6] = (0.5, 0.3, 0.0)
 
     result = detect_finger_states(points)
     gesture = classify_hand(points)
