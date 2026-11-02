@@ -43,6 +43,7 @@ class Match:
         self.p1_score = 0
         self.p2_score = 0
         self.round_no = 1
+        self.stopped = False
 
     def add_round(self, result):
         """judge() 결과를 받아 점수와 라운드를 갱신한다.
@@ -61,18 +62,32 @@ class Match:
 
     @property
     def winner(self):
-        """선승한 플레이어("P1"/"P2"). 아직 없으면 None."""
+        """승자("P1"/"P2"/"DRAW"). 아직 안 끝났으면 None.
+
+        선승하면 그 플레이어, 중간에 finish()로 끝내면 누적 점수로 정한다.
+        """
         need = wins_needed(self.best_of)
         if self.p1_score >= need:
             return "P1"
         if self.p2_score >= need:
             return "P2"
+        if self.stopped:
+            if self.p1_score > self.p2_score:
+                return "P1"
+            if self.p2_score > self.p1_score:
+                return "P2"
+            return "DRAW"
         return None
 
     @property
     def is_over(self):
         """게임이 끝났는지 여부."""
         return self.winner is not None
+
+    def finish(self):
+        """게임 종료 버튼을 눌렀을 때 호출한다. 누적 점수로 정한 승자를 돌려준다."""
+        self.stopped = True
+        return self.winner
 
 
 if __name__ == "__main__":
@@ -114,3 +129,10 @@ if __name__ == "__main__":
     print(f"승자: {m.winner}")
     m.add_round("P2")
     print(f"종료 후 P2 입력 -> 점수 {m.p1_score}:{m.p2_score} (변화 없어야 함)")
+
+    print()
+    for results in (["P1", "P2", "P1"], ["P2"], ["P1", "P2"], []):
+        m = Match(7)
+        for r in results:
+            m.add_round(r)
+        print(f"7판 중간 종료 {m.p1_score}:{m.p2_score} -> {m.finish()}, 종료 {m.is_over}")
