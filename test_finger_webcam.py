@@ -40,7 +40,9 @@ with vision.HandLandmarker.create_from_options(options) as landmarker:
         result = landmarker.detect(mp_image)
 
         if result.hand_landmarks:
-            landmarks = result.hand_landmarks[0]
+            landmarks = [(lm.x, lm.y, lm.z) for lm in result.hand_landmarks[0]]
+
+
 
             # 기존 손가락 상태 판별 함수 호출
             states = detect_finger_states(landmarks)
