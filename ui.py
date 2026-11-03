@@ -310,9 +310,48 @@ def draw_game_over(frame, winner, p1_score, p2_score):
     return frame
 
 
+GUIDE_LINES = [
+    "P1: LEFT side   /   P2: RIGHT side",
+    "Click 3 / 5 / 7 to choose rounds",
+    "Show your hand when you see SHOW!",
+    "Click QUIT to end the game anytime",
+]
+
+
+def get_start_button(frame):
+    """안내 화면의 START 버튼: 화면 아래쪽 가운데."""
+    h, w = frame.shape[:2]
+    button_w, button_h = w // 4, h // 10
+    return make_button("START", (w - button_w) // 2, int(h * 0.74), button_w, button_h)
+
+
+def draw_guide(frame):
+    """게임 시작 전 안내 화면: 제목, 사용법 4줄, START 버튼."""
+    h, w = frame.shape[:2]
+    center_x = w // 2
+    scale = w / 900   # 화면 너비에 맞춰 글자 크기를 정한다 (640px → 약 0.7)
+
+    # 화면 전체를 어둡게 덮어서 글자가 잘 보이게
+    overlay = frame.copy()
+    cv2.rectangle(overlay, (0, 0), (w, h), BLACK, -1)
+    cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
+
+    _put_centered(frame, "HandClash", center_x, int(h * 0.20), scale * 2.2, YELLOW, max(3, int(scale * 6)))
+    for i, line in enumerate(GUIDE_LINES):
+        y = int(h * 0.36) + i * int(h * 0.085)
+        _put_centered(frame, line, center_x, y, scale, WHITE, max(1, int(scale * 2.5)))
+    draw_button(frame, get_start_button(frame), YELLOW)
+    return frame
+
+
+def is_start_clicked(frame, click):
+    """START 버튼을 눌렀으면 True."""
+    return is_clicked(get_start_button(frame), click)
+
+
 if __name__ == "__main__":
     # 혼자 실행해서 화면이 뜨는지 확인하는 테스트용 코드 (나중에는 game.py/main.py가 이 역할을 한다)
-    #   판수 버튼 클릭 → SPACE: 한 판 시작 → 누가 먼저 필요 승수에 닿거나 QUIT 버튼을 누르면 게임 끝
+    #   START 클릭 → 판수 버튼 클릭 → SPACE: 한 판 시작 → 누가 먼저 필요 승수에 닿거나 QUIT 버튼을 누르면 게임 끝
     #   r: 판수 선택으로 돌아가기 / q: 종료
     import random
 
@@ -326,7 +365,7 @@ if __name__ == "__main__":
 
     cap = open_camera()
     enable_mouse()
-    state = "SELECT"            # SELECT → PLAY → OVER
+    state = "GUIDE"             # GUIDE → SELECT → PLAY → OVER
     best_of = 3
     countdown_start = None
     result_info = None          # (p1_hand, p2_hand, result, 보여 주기 시작한 시각)
@@ -339,7 +378,12 @@ if __name__ == "__main__":
         frame = draw_split_screen(frame)
         click = get_click()
 
-        if state == "SELECT":
+        if state == "GUIDE":
+            frame = draw_guide(frame)
+            if is_start_clicked(frame, click):
+                state = "SELECT"
+
+        elif state == "SELECT":
             frame = draw_best_of_select(frame)
             chosen = get_clicked_best_of(frame, click)
             if chosen is not None:
