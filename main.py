@@ -5,21 +5,20 @@ import cv2
 import ui
 from finger_state import classify_hand
 from game import Match, judge
-from hand_tracker import HandTracker, draw_players, open_camera
+from hand_tracker import HandTracker, draw_hand, open_camera
 
-BEST_OF = 3                # MVP: 3판 2선승 고정 (판수 선택은 다음 단계)
 RESULT_SHOW_SECONDS = 2    # 라운드 결과를 보여 주는 시간(초)
 
 
 def main():
     tracker = HandTracker()
     cap = open_camera()
+    ui.enable_mouse()
 
-    match = Match(BEST_OF)
-    state = "GUIDE"            # GUIDE → COUNTDOWN → RESULT → (COUNTDOWN 반복) → OVER
+    state = "GUIDE"            # GUIDE → SELECT → PLAY → OVER  (ui.py 흐름 그대로)
+    match = Match(3)
     countdown_start = None
-    result_start = None
-    last = (None, None, None)  # (p1_hand, p2_hand, result)
+    result_info = None         # (p1_hand, p2_hand, result, 보여 주기 시작한 시각)
 
     try:
         while True:
@@ -28,51 +27,71 @@ def main():
                 print("웹캠 프레임을 읽지 못했습니다.")
                 break
 
-            frame = cv2.flip(frame, 1)
+            frame = cv2.flip(frame, 1)  # 거울처럼 좌우 반전
             hands = tracker.detect(frame)
-            draw_players(frame, hands)
+
+            # 분할선·라벨은 ui, 손 관절은 hand_tracker가 그린다
+            frame = ui.draw_split_screen(frame)
+            if hands["P1"] is not None:
+                draw_hand(frame, hands["P1"], ui.P1_COLOR)
+            if hands["P2"] is not None:
+                draw_hand(frame, hands["P2"], ui.P2_COLOR)
+
+            click = ui.get_click()
 
             if state == "GUIDE":
-                ui.draw_message(frame, "Press SPACE to start", ui.YELLOW)
+                frame = ui.draw_guide(frame)
+                if ui.is_start_clicked(frame, click):
+                    state = "SELECT"
 
-            elif state == "COUNTDOWN":
-                text = ui.get_countdown_text(countdown_start)
-                ui.draw_countdown(frame, text)
-                if text is None:
-                    # 카운트다운이 끝난 순간의 손모양으로 판정
-                    p1_hand = classify_hand(hands["P1"])
-                    p2_hand = classify_hand(hands["P2"])
-                    result = judge(p1_hand, p2_hand)
-                    match.add_round(result)   # None이면 점수·라운드 그대로(재시도)
-                    last = (p1_hand, p2_hand, result)
-                    state, result_start = "RESULT", time.time()
+            elif state == "SELECT":
+                frame = ui.draw_best_of_select(frame)
+                chosen = ui.get_clicked_best_of(frame, click)
+                if chosen is not None:
+                    match = Match(chosen)
+                    state = "PLAY"
 
-            elif state == "RESULT":
-                ui.draw_round_result(frame, *last)
-                if time.time() - result_start >= RESULT_SHOW_SECONDS:
-                    if match.is_over:
-                        state = "OVER"
-                    else:
-                        state, countdown_start = "COUNTDOWN", ui.start_countdown()
+            elif state == "PLAY":
+                frame = ui.draw_scoreboard(frame, match.p1_score, match.p2_score,
+                                           match.round_no, match.best_of)
+                frame = ui.draw_quit_button(frame)
+                if ui.is_quit_clicked(frame, click):  # 중간 종료 → 누적 점수로 승자 결정
+                    match.finish()
+                    state, countdown_start, result_info = "OVER", None, None
+
+                if countdown_start is not None:
+                    text = ui.get_countdown_text(countdown_start)
+                    frame = ui.draw_countdown(frame, text)
+                    if text is None:
+                        # 카운트다운이 끝난 순간의 손모양으로 판정
+                        countdown_start = None
+                        p1_hand = classify_hand(hands["P1"])
+                        p2_hand = classify_hand(hands["P2"])
+                        result = judge(p1_hand, p2_hand)
+                        match.add_round(result)   # None이면 점수·라운드 그대로(재시도)
+                        result_info = (p1_hand, p2_hand, result, time.time())
+
+                if state == "PLAY" and result_info is not None:
+                    frame = ui.draw_round_result(frame, *result_info[:3])
+                    if time.time() - result_info[3] >= RESULT_SHOW_SECONDS:
+                        result_info = None
+                        if match.is_over:
+                            state = "OVER"
 
             elif state == "OVER":
-                ui.draw_game_over(frame, match.winner, match.p1_score, match.p2_score)
+                frame = ui.draw_game_over(frame, match.winner, match.p1_score, match.p2_score)
                 h = frame.shape[0]
                 cv2.putText(frame, "r: restart / q: quit", (20, h - 30),
                             ui.FONT, 0.8, ui.WHITE, 2)
 
-            if state != "OVER":
-                ui.draw_scoreboard(frame, match.p1_score, match.p2_score,
-                                   match.round_no, match.best_of)
-
             key = ui.show_frame(frame)
+            if (key == ord(" ") and state == "PLAY"
+                    and countdown_start is None and result_info is None):
+                countdown_start = ui.start_countdown()
+            elif key == ord("r"):
+                state, countdown_start, result_info = "SELECT", None, None
             if ui.should_quit(key):
                 break
-            if key == ord(" ") and state == "GUIDE":
-                state, countdown_start = "COUNTDOWN", ui.start_countdown()
-            elif key == ord("r") and state == "OVER":
-                match = Match(BEST_OF)
-                state = "GUIDE"
     finally:
         cap.release()
         tracker.close()
