@@ -3,6 +3,7 @@ import time
 import cv2
 
 import ui
+import records
 from finger_state import classify_hand
 from game import Match, judge
 from hand_tracker import HandTracker, draw_hand, open_camera
@@ -11,12 +12,14 @@ RESULT_SHOW_SECONDS = 2    # 라운드 결과를 보여 주는 시간(초)
 
 
 def main():
+    records.start_records()
     tracker = HandTracker()
     cap = open_camera()
     ui.enable_mouse()
 
     state = "GUIDE"            # GUIDE → SELECT → PLAY → OVER  (ui.py 흐름 그대로)
     match = Match(3)
+    game_id = 0                # 몇 번째 게임인지 구분하기 위한 변수
     countdown_start = None
     result_info = None         # (p1_hand, p2_hand, result, 보여 주기 시작한 시각)
 
@@ -48,6 +51,7 @@ def main():
                 frame = ui.draw_best_of_select(frame)
                 chosen = ui.get_clicked_best_of(frame, click)
                 if chosen is not None:
+                    game_id += 1
                     match = Match(chosen)
                     state = "PLAY"
 
@@ -68,6 +72,16 @@ def main():
                         p1_hand = classify_hand(hands["P1"])
                         p2_hand = classify_hand(hands["P2"])
                         result = judge(p1_hand, p2_hand)
+
+                        if result is not None:
+                            records.append_records(
+                                game_id,
+                                match.round_no,
+                                p1_hand,
+                                p2_hand,
+                                result
+                            )
+                        
                         match.add_round(result)   # None이면 점수·라운드 그대로(재시도)
                         result_info = (p1_hand, p2_hand, result, time.time())
 
@@ -92,6 +106,8 @@ def main():
                 state, countdown_start, result_info = "SELECT", None, None
             if ui.should_quit(key):
                 break
+
+        report = records.generate_report()
     finally:
         cap.release()
         tracker.close()
