@@ -108,6 +108,10 @@ def main():
                 break
 
         report = records.generate_report()
+
+        for player in ["P1", "P2"]:
+            for line in report[player]:
+                print(line)
     finally:
         cap.release()
         tracker.close()
