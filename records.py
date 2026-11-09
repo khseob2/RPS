@@ -83,7 +83,7 @@ def generate_report():
     with open(records_path, "r", newline="", encoding="utf-8") as file:
         reader = csv.DictReader(file)
         rows = list(reader)
-        total_games = len({row["game_id"] for row in rows})
+        total_games = rows[-1]["game_id"]
 
         for row in rows:
             result = row["result"].strip().upper()
