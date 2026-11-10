@@ -21,7 +21,7 @@ def main():
     match = Match(3)
     game_id = 0                # 몇 번째 게임인지 구분하기 위한 변수
     countdown_start = None
-    result_info = None         # (p1_hand, p2_hand, result, 보여 주기 시작한 시각)
+    result_info = None         # (p1_hand, p2_hand, result, 보여 주기 시작한 시각, 판정한 라운드 번호)
 
     try:
         while True:
@@ -56,8 +56,10 @@ def main():
                     state = "PLAY"
 
             elif state == "PLAY":
+                # 결과를 보여 주는 동안에는 방금 판정한 라운드 번호를 그대로 보여 준다
+                shown_round = result_info[4] if result_info is not None else match.round_no
                 frame = ui.draw_scoreboard(frame, match.p1_score, match.p2_score,
-                                           match.round_no, match.best_of)
+                                           shown_round, match.best_of)
                 frame = ui.draw_quit_button(frame)
                 if ui.is_quit_clicked(frame, click):  # 중간 종료 → 누적 점수로 승자 결정
                     match.finish()
@@ -72,6 +74,7 @@ def main():
                         p1_hand = classify_hand(hands["P1"])
                         p2_hand = classify_hand(hands["P2"])
                         result = judge(p1_hand, p2_hand)
+                        judged_round = match.round_no   # add_round()가 번호를 올리기 전에 저장
 
                         if result is not None:
                             records.append_records(
@@ -83,7 +86,7 @@ def main():
                             )
                         
                         match.add_round(result)   # None이면 점수·라운드 그대로(재시도)
-                        result_info = (p1_hand, p2_hand, result, time.time())
+                        result_info = (p1_hand, p2_hand, result, time.time(), judged_round)
 
                 if state == "PLAY" and result_info is not None:
                     frame = ui.draw_round_result(frame, *result_info[:3])
