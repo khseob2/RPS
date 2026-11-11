@@ -97,9 +97,6 @@ def main():
 
             elif state == "OVER":
                 frame = ui.draw_game_over(frame, match.winner, match.p1_score, match.p2_score)
-                h = frame.shape[0]
-                cv2.putText(frame, "r: restart / q: quit", (20, h - 30),
-                            ui.FONT, 0.8, ui.WHITE, 2)
 
             key = ui.show_frame(frame)
             if (key == ord(" ") and state == "PLAY"
