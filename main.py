@@ -17,10 +17,11 @@ def main():
     cap = open_camera()
     ui.enable_mouse()
 
-    state = "GUIDE"            # GUIDE → SELECT → PLAY → OVER  (ui.py 흐름 그대로)
+    state = "GUIDE"            # GUIDE → CHECK → SELECT → PLAY → OVER  (ui.py 흐름 그대로)
     match = Match(3)
     game_id = 0                # 몇 번째 게임인지 구분하기 위한 변수
     countdown_start = None
+    check_start = None         # 손 인식 확인: 두 손이 함께 보이기 시작한 시각
     result_info = None         # (p1_hand, p2_hand, result, 보여 주기 시작한 시각, 판정한 라운드 번호)
 
     try:
@@ -45,7 +46,21 @@ def main():
             if state == "GUIDE":
                 frame = ui.draw_guide(frame)
                 if ui.is_start_clicked(frame, click):
-                    state = "SELECT"
+                    state, check_start = "CHECK", None
+
+            elif state == "CHECK":
+                # 두 영역 모두 손이 잡힌 상태가 HAND_CHECK_SECONDS 동안 이어지면 판수 선택으로
+                p1_found = hands["P1"] is not None
+                p2_found = hands["P2"] is not None
+                if p1_found and p2_found:
+                    if check_start is None:
+                        check_start = time.time()
+                else:
+                    check_start = None
+                progress = ui.get_check_progress(check_start)
+                frame = ui.draw_hand_check(frame, p1_found, p2_found, progress)
+                if progress >= 1.0:
+                    state, check_start = "SELECT", None
 
             elif state == "SELECT":
                 frame = ui.draw_best_of_select(frame)
