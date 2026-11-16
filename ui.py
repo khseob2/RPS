@@ -6,6 +6,7 @@ WINDOW_NAME = "HandClash"
 QUIT_KEYS = (ord("q"), 27)  # q, ESC
 COUNTDOWN_SECONDS = 3       # 3, 2, 1 을 세는 시간(초)
 SHOW_SECONDS = 1            # "SHOW!"를 보여 주는 시간(초)
+HAND_CHECK_SECONDS = 1.0    # 두 손이 이 시간(초) 동안 계속 인식되면 판수 선택으로 넘어간다
  
 SCOREBOARD_HEIGHT = 120     # 점수판 카드 + 아래 여백 높이(720px 화면 기준, 픽셀)
 # 색은 OpenCV 기준 BGR 순서 (발표 자료와 같은 색)
@@ -610,3 +611,61 @@ if __name__ == "__main__":
             break
     cap.release()
     cv2.destroyAllWindows()
+
+
+# ---------------------------------------------------------------------------
+# 시작 전 손 인식 확인 (#4)
+# ---------------------------------------------------------------------------
+
+def get_check_progress(check_start, now=None):
+    """두 손이 인식되기 시작한 시각부터 얼마나 지났는지를 0~1로 돌려준다.
+
+    check_start가 None이면(아직 두 손이 다 안 보이면) 0. 1이 되면 다음 화면으로 넘어간다.
+    """
+    if check_start is None:
+        return 0.0
+    if now is None:
+        now = time.time()
+    return min(1.0, (now - check_start) / HAND_CHECK_SECONDS)
+
+
+def draw_hand_check(frame, p1_found, p2_found, progress=0.0):
+    """게임 시작 전 손 인식 확인 화면.
+
+    p1_found, p2_found: 각 영역에서 손이 인식됐으면 True
+    progress: 두 손이 함께 인식된 시간 비율(0~1). 아래 막대로 보여 준다.
+    인식된 쪽은 "P1 READY", 안 된 쪽은 "Show your hand in the P1 area"를 표시한다.
+    """
+    h, w = frame.shape[:2]
+    s = _ui_scale(frame)
+    center_x = get_center_x(frame)
+
+    # 위쪽 가운데: 제목 카드
+    card_w, card_h = int(440 * s), int(100 * s)
+    y1 = int(78 * s)
+    _panel(frame, center_x - card_w // 2, y1, center_x + card_w // 2, y1 + card_h, NAVY, 0.85, int(20 * s))
+    _text(frame, "Hand check", center_x, y1 + int(48 * s), 1.2 * s, ACCENT, max(2, int(3 * s)))
+    _text(frame, "Put one hand in each area", center_x, y1 + int(80 * s), 0.65 * s, MUTED, 1, FONT)
+
+    # 각 영역 가운데에 상태 표시
+    status_y = int(h * 0.40)
+    for label, found, area_x, color in (("P1", p1_found, center_x // 2, P1_COLOR),
+                                        ("P2", p2_found, center_x + (w - center_x) // 2, P2_COLOR)):
+        if found:
+            _pill(frame, f"{label} READY", area_x, status_y, 0.9 * s, NAVY, ACCENT, 0.95,
+                  int(22 * s), int(12 * s), thickness=max(1, int(2 * s)))
+        else:
+            _text_mid(frame, f"Show your hand in the {label} area", area_x, status_y, 0.7 * s, YELLOW,
+                      max(1, int(2 * s)), shadow=True)
+
+    # 두 손이 모두 인식되면 가운데에 진행 막대
+    if p1_found and p2_found:
+        bar_w, bar_h = int(320 * s), int(12 * s)
+        x1, y1 = center_x - bar_w // 2, int(h * 0.52)
+        _text(frame, "Both hands ready!", center_x, y1 - int(14 * s), 0.9 * s, ACCENT, max(1, int(2 * s)),
+              shadow=True)
+        _panel(frame, x1, y1, x1 + bar_w, y1 + bar_h, NAVY, 0.85, bar_h // 2)
+        fill_w = int(bar_w * max(0.0, min(1.0, progress)))
+        if fill_w > bar_h:
+            _rounded_rect(frame, x1, y1, x1 + fill_w, y1 + bar_h, bar_h // 2, ACCENT, -1)
+    return frame
