@@ -11,21 +11,35 @@ WIN_RULES = { "rock" : "scissors",
 
 HANDS = ["rock", "paper", "scissors"]
 
-def start_records(): 
-    """게임 시작 시 csv 파일을 초기화하고, 헤더를 작성하는 함수"""
-    os.makedirs(os.path.dirname(records_path), exist_ok=True)
+def print_save_error(action, error):
+    """기록 파일 저장에 실패했을 때 원인을 터미널에 알리는 함수"""
+    print(f"[기록 오류] {action}에 실패했습니다 ({records_path}): {error}")
+    if isinstance(error, PermissionError):
+        print("[기록 오류] 파일이 엑셀 등 다른 프로그램에서 열려 있다면 닫은 뒤 다시 시도하세요.")
 
-    with open(records_path, "w", newline="", encoding="utf-8")as file:
-        writer=csv.writer(file)
-        writer.writerow(header)
+def start_records():
+    """게임 시작 시 csv 파일을 초기화하고, 헤더를 작성하는 함수"""
+    try:
+        os.makedirs(os.path.dirname(records_path) or ".", exist_ok=True)
+
+        with open(records_path, "w", newline="", encoding="utf-8")as file:
+            writer=csv.writer(file)
+            writer.writerow(header)
+    except OSError as error:
+        print_save_error("기록 파일 초기화", error)
 
 def append_records(game_id, round, p1_hand, p2_hand, result):
     """결과를 csv파일에 추가하고 바로 저장하는 함수"""
-    with open(records_path, "a", newline="", encoding="utf-8") as file:
-        writer = csv.writer(file)
-        writer.writerow([game_id, round, p1_hand, p2_hand, result])
-        file.flush()
-        os.fsync(file.fileno())
+    try:
+        os.makedirs(os.path.dirname(records_path) or ".", exist_ok=True)
+
+        with open(records_path, "a", newline="", encoding="utf-8") as file:
+            writer = csv.writer(file)
+            writer.writerow([game_id, round, p1_hand, p2_hand, result])
+            file.flush()
+            os.fsync(file.fileno())
+    except OSError as error:
+        print_save_error("라운드 결과 저장", error)
 
 def calculate_hand_stats():
     """CSV 기록을 읽어 플레이어 별 손모양 통계를 반환하는 함수"""
