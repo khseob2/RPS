@@ -22,6 +22,7 @@ def main():
     game_id = 0                # 몇 번째 게임인지 구분하기 위한 변수
     countdown_start = None
     check_start = None         # 손 인식 확인: 두 손이 함께 보이기 시작한 시각
+    report_stats = None        # 리포트 화면에 보여 줄 손모양 통계 (게임이 끝날 때 한 번 읽음)
     result_info = None         # (p1_hand, p2_hand, result, 보여 주기 시작한 시각, 판정한 라운드 번호)
 
     try:
@@ -111,7 +112,11 @@ def main():
                             state = "OVER"
 
             elif state == "OVER":
-                frame = ui.draw_game_over(frame, match.winner, match.p1_score, match.p2_score)
+                if report_stats is None:   # 매 프레임 CSV를 읽지 않도록 처음 한 번만 읽는다
+                    report_stats = records.calculate_hand_stats()
+                frame = ui.draw_report(frame, match.winner, match.p1_score, match.p2_score, report_stats)
+                if ui.is_report_quit_clicked(frame, click):   # QUIT 버튼 → 창 닫기
+                    break
 
             key = ui.show_frame(frame)
             if (key == ord(" ") and state == "PLAY"
@@ -119,6 +124,7 @@ def main():
                 countdown_start = ui.start_countdown()
             elif key == ord("r"):
                 state, countdown_start, result_info = "SELECT", None, None
+                report_stats = None
             if ui.should_quit(key):
                 break
 
