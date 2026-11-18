@@ -301,18 +301,30 @@ def draw_message(frame, text, color=YELLOW, scale=1.5):
     return frame
 
 
-def draw_round_result(frame, p1_hand, p2_hand, result):
+def _draw_next_hint(frame, center_x, center_y, s, label="next round"):
+    """결과 아래에 "[SPACE] next round" 같은 안내를 어두운 배지 위에 그린다."""
+    pill_w, pill_h = int(250 * s), int(48 * s)
+    _panel(frame, center_x - pill_w // 2, center_y - pill_h // 2,
+           center_x + pill_w // 2, center_y + pill_h // 2, NAVY, 0.85, pill_h // 2)
+    _key_hint(frame, [("SPACE", True), (label, False)], center_x, center_y, s)
+
+
+def draw_round_result(frame, p1_hand, p2_hand, result, next_hint=False):
     """한 판의 결과를 화면 가운데 카드에 그린다.
 
     p1_hand, p2_hand: "rock" / "paper" / "scissors" (소문자), 손이 없으면 None
     result: "P1", "P2", "DRAW"  (None이면 결과 없음 → 안내 문구만 그린다)
+    next_hint: True면 아래에 "SPACE next round" 안내를 그린다 (결과가 SPACE까지 유지될 때, #17)
     카드 위쪽에 두 사람의 손모양, 아래쪽에 승패를 크게 보여 준다.
     """
-    if result not in RESULT_TEXT:
-        return draw_message(frame, "Show both hands!", YELLOW)
-
     h, w = frame.shape[:2]
     s = _ui_scale(frame)
+    if result not in RESULT_TEXT:
+        draw_message(frame, "Show both hands!", YELLOW)
+        if next_hint:
+            _draw_next_hint(frame, get_center_x(frame), h // 2 + int(80 * s), s, "try again")
+        return frame
+
     center_x = get_center_x(frame)
     mid_y = h // 2 - int(20 * s)
     color = RESULT_COLOR[result]
@@ -330,6 +342,8 @@ def draw_round_result(frame, p1_hand, p2_hand, result):
 
     # 아랫줄: 승패 크게
     _text_mid(frame, RESULT_TEXT[result], center_x, y2 - int(78 * s), 2.3 * s, color, max(3, int(6 * s)))
+    if next_hint:
+        _draw_next_hint(frame, center_x, y2 + int(44 * s), s)
     return frame
 
 
