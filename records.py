@@ -1,5 +1,7 @@
 import csv
 import os
+import matplotlib.pyplot as plt
+import numpy as np
 
 records_path = "data/records.csv"
 
@@ -125,3 +127,85 @@ def generate_report():
         report[player] = lines
 
     return report
+
+
+def show_hand_graph():
+    """통계를 기반으로 손을 낸 횟수 그래프를 만드는 함수"""
+    stats = calculate_hand_stats()
+
+    p1_counts = [stats["P1"][hand]["count"] for hand in hands]
+    p2_counts = [stats["P2"][hand]["count"] for hand in hands]
+
+    x = np.arange(len(HANDS))
+    width = 0.35
+
+    plt.figure(figsize=(8, 5))
+
+    plt.bar(x - width/2, p1_counts, width, label="P1")
+    plt.bar(x + width/2, p2_counts, width, label="P2")
+
+    plt.xlabel("Hand")
+    plt.ylabel("Count")
+    plt.title("Hand Usage Statistics")
+
+    plt.xticks(x, ["Rock", "Paper", "Scissors"])
+    plt.legend()
+
+    plt.tight_layout()
+    plt.show()
+
+def show_wins_graph():
+    """P1과 P2의 손 모양별 승리 횟수 비교"""
+    stats = calculate_hand_stats()
+
+    p1_wins = [stats["P1"][hand]["wins"] for hand in HANDS]
+    p2_wins = [stats["P2"][hand]["wins"] for hand in HANDS]
+
+    x = np.arange(len(HANDS))
+    width = 0.35
+
+    plt.figure(figsize=(8, 5))
+
+    plt.bar(x - width / 2, p1_wins, width, label="P1")
+    plt.bar(x + width / 2, p2_wins, width, label="P2")
+
+    plt.xlabel("Hand")
+    plt.ylabel("Wins")
+    plt.title("Hand Win Statistics")
+    plt.xticks(x, [hand.capitalize() for hand in HANDS])
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+def show_win_rate_graph():
+    """P1과 P2의 손 모양별 승률 비교"""
+    stats = calculate_hand_stats()
+
+    p1_rates = [
+        stats["P1"][hand]["win_rate"]
+        if stats["P1"][hand]["count"] > 0 else 0
+        for hand in HANDS
+    ]
+
+    p2_rates = [
+        stats["P2"][hand]["win_rate"]
+        if stats["P2"][hand]["count"] > 0 else 0
+        for hand in HANDS
+    ]
+
+    x = np.arange(len(HANDS))
+    width = 0.35
+
+    plt.figure(figsize=(8, 5))
+
+    plt.bar(x - width / 2, p1_rates, width, label="P1")
+    plt.bar(x + width / 2, p2_rates, width, label="P2")
+
+    plt.xlabel("Hand")
+    plt.ylabel("Win Rate (%)")
+    plt.title("Hand Win Rate Statistics")
+    plt.xticks(x, [hand.capitalize() for hand in HANDS])
+    plt.ylim(0, 100)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
