@@ -1,3 +1,4 @@
+import math
 import time
 
 import cv2
@@ -6,6 +7,7 @@ WINDOW_NAME = "HandClash"
 QUIT_KEYS = (ord("q"), 27)  # q, ESC
 COUNTDOWN_SECONDS = 3       # 3, 2, 1 을 세는 시간(초)
 SHOW_SECONDS = 1            # "SHOW!"를 보여 주는 시간(초)
+HAND_CHECK_SECONDS = 1.0    # 두 손이 이 시간(초) 동안 계속 인식되면 판수 선택으로 넘어간다
  
 SCOREBOARD_HEIGHT = 120     # 점수판 카드 + 아래 여백 높이(720px 화면 기준, 픽셀)
 # 색은 OpenCV 기준 BGR 순서 (발표 자료와 같은 색)
@@ -299,18 +301,30 @@ def draw_message(frame, text, color=YELLOW, scale=1.5):
     return frame
 
 
-def draw_round_result(frame, p1_hand, p2_hand, result):
+def _draw_next_hint(frame, center_x, center_y, s, label="next round"):
+    """결과 아래에 "[SPACE] next round" 같은 안내를 어두운 배지 위에 그린다."""
+    pill_w, pill_h = int(250 * s), int(48 * s)
+    _panel(frame, center_x - pill_w // 2, center_y - pill_h // 2,
+           center_x + pill_w // 2, center_y + pill_h // 2, NAVY, 0.85, pill_h // 2)
+    _key_hint(frame, [("SPACE", True), (label, False)], center_x, center_y, s)
+
+
+def draw_round_result(frame, p1_hand, p2_hand, result, next_hint=False):
     """한 판의 결과를 화면 가운데 카드에 그린다.
 
     p1_hand, p2_hand: "rock" / "paper" / "scissors" (소문자), 손이 없으면 None
     result: "P1", "P2", "DRAW"  (None이면 결과 없음 → 안내 문구만 그린다)
+    next_hint: True면 아래에 "SPACE next round" 안내를 그린다 (결과가 SPACE까지 유지될 때, #17)
     카드 위쪽에 두 사람의 손모양, 아래쪽에 승패를 크게 보여 준다.
     """
-    if result not in RESULT_TEXT:
-        return draw_message(frame, "Show both hands!", YELLOW)
-
     h, w = frame.shape[:2]
     s = _ui_scale(frame)
+    if result not in RESULT_TEXT:
+        draw_message(frame, "Show both hands!", YELLOW)
+        if next_hint:
+            _draw_next_hint(frame, get_center_x(frame), h // 2 + int(80 * s), s, "try again")
+        return frame
+
     center_x = get_center_x(frame)
     mid_y = h // 2 - int(20 * s)
     color = RESULT_COLOR[result]
@@ -328,6 +342,8 @@ def draw_round_result(frame, p1_hand, p2_hand, result):
 
     # 아랫줄: 승패 크게
     _text_mid(frame, RESULT_TEXT[result], center_x, y2 - int(78 * s), 2.3 * s, color, max(3, int(6 * s)))
+    if next_hint:
+        _draw_next_hint(frame, center_x, y2 + int(44 * s), s)
     return frame
 
 
@@ -610,3 +626,223 @@ if __name__ == "__main__":
             break
     cap.release()
     cv2.destroyAllWindows()
+
+
+# ---------------------------------------------------------------------------
+# 시작 전 손 인식 확인 (#4)
+# ---------------------------------------------------------------------------
+
+def get_check_progress(check_start, now=None):
+    """두 손이 인식되기 시작한 시각부터 얼마나 지났는지를 0~1로 돌려준다.
+
+    check_start가 None이면(아직 두 손이 다 안 보이면) 0. 1이 되면 다음 화면으로 넘어간다.
+    """
+    if check_start is None:
+        return 0.0
+    if now is None:
+        now = time.time()
+    return min(1.0, (now - check_start) / HAND_CHECK_SECONDS)
+
+
+def _draw_hand_icon(frame, hand, cx, cy, size, color):
+    """손모양 예시를 도형으로 그린다. hand: "rock" / "scissors" / "paper".
+
+    (cx, cy)는 손바닥 윗변 가운데, size는 아이콘 크기(픽셀).
+    손바닥은 둥근 사각형, 손가락은 끝이 둥근 굵은 선으로 그린다.
+    """
+    t = max(3, int(size * 0.135))            # 손가락 굵기
+    palm_w, palm_h = int(size * 0.56), int(size * 0.46)
+    x1 = cx - palm_w // 2
+    _rounded_rect(frame, x1, cy, x1 + palm_w, cy + palm_h, int(size * 0.16), color, -1)
+
+    def finger(x, length, angle=0):
+        # 손바닥 윗변에서 위로(angle도만큼 기울여) 뻗은 손가락 하나
+        rad = math.radians(angle)
+        x2 = int(x + length * math.sin(rad))
+        y2 = int(cy - length * math.cos(rad))
+        cv2.line(frame, (x, cy + t // 2), (x2, y2), color, t, AA)
+        cv2.circle(frame, (x2, y2), t // 2, color, -1, AA)
+
+    finger_xs = [x1 + int(palm_w * f) for f in (0.15, 0.38, 0.62, 0.85)]
+    long_len, short_len = int(size * 0.5), int(size * 0.1)
+    thumb_base = (x1 + int(palm_w * 0.05), cy + int(palm_h * 0.55))
+
+    if hand == "rock":          # 손가락 4개 모두 접음, 엄지도 접음
+        for x in finger_xs:
+            finger(x, short_len)
+        cv2.line(frame, thumb_base, (cx, cy + int(palm_h * 0.35)), NAVY, max(2, t // 3), AA)
+    elif hand == "scissors":    # 검지·중지만 V자로 펴고 나머지는 접음
+        finger(finger_xs[0], long_len, -12)
+        finger(finger_xs[1], long_len, 8)
+        finger(finger_xs[2], short_len)
+        finger(finger_xs[3], short_len)
+    else:                       # paper: 다섯 손가락 모두 폄
+        for x, length in zip(finger_xs, (0.42, 0.5, 0.48, 0.38)):
+            finger(x, int(size * length), (x - cx) / palm_w * 30)
+        tip = (thumb_base[0] - int(size * 0.3), thumb_base[1] - int(size * 0.28))
+        cv2.line(frame, thumb_base, tip, color, t, AA)
+        cv2.circle(frame, tip, t // 2, color, -1, AA)
+
+
+def _draw_allowed_hands(frame, s):
+    """화면 아래 가운데에 인정되는 손모양 3가지 예시 카드를 그린다."""
+    h, w = frame.shape[:2]
+    center_x = get_center_x(frame)
+    card_w, card_h = int(560 * s), int(190 * s)
+    y2 = h - int(24 * s)
+    y1 = y2 - card_h
+    _panel(frame, center_x - card_w // 2, y1, center_x + card_w // 2, y2, NAVY, 0.88, int(22 * s))
+    _text(frame, "Allowed hands", center_x, y1 + int(32 * s), 0.6 * s, MUTED, 1, FONT)
+
+    size = int(78 * s)
+    for i, hand in enumerate(("rock", "scissors", "paper")):
+        x = center_x + (i - 1) * int(170 * s)
+        _draw_hand_icon(frame, hand, x, y1 + int(95 * s), size, WHITE)
+        _text(frame, HAND_NAMES[hand], x, y2 - int(18 * s), 0.7 * s, ACCENT, max(1, int(2 * s)))
+
+
+def draw_hand_check(frame, p1_found, p2_found, progress=0.0):
+    """게임 시작 전 손 인식 확인 화면.
+
+    p1_found, p2_found: 각 영역에서 손이 인식됐으면 True
+    progress: 두 손이 함께 인식된 시간 비율(0~1). 아래 막대로 보여 준다.
+    인식된 쪽은 "P1 READY", 안 된 쪽은 "Show your hand in the P1 area"를 표시하고,
+    아래에는 인정되는 손모양(바위·가위·보) 예시를 보여 준다.
+    """
+    h, w = frame.shape[:2]
+    s = _ui_scale(frame)
+    center_x = get_center_x(frame)
+
+    # 위쪽 가운데: 제목 카드
+    card_w, card_h = int(440 * s), int(100 * s)
+    y1 = int(78 * s)
+    _panel(frame, center_x - card_w // 2, y1, center_x + card_w // 2, y1 + card_h, NAVY, 0.85, int(20 * s))
+    _text(frame, "Hand check", center_x, y1 + int(48 * s), 1.2 * s, ACCENT, max(2, int(3 * s)))
+    _text(frame, "Put one hand in each area", center_x, y1 + int(80 * s), 0.65 * s, MUTED, 1, FONT)
+
+    # 각 영역 가운데에 상태 표시
+    status_y = int(h * 0.40)
+    for label, found, area_x, color in (("P1", p1_found, center_x // 2, P1_COLOR),
+                                        ("P2", p2_found, center_x + (w - center_x) // 2, P2_COLOR)):
+        if found:
+            _pill(frame, f"{label} READY", area_x, status_y, 0.9 * s, NAVY, ACCENT, 0.95,
+                  int(22 * s), int(12 * s), thickness=max(1, int(2 * s)))
+        else:
+            _text_mid(frame, f"Show your hand in the {label} area", area_x, status_y, 0.7 * s, YELLOW,
+                      max(1, int(2 * s)), shadow=True)
+
+    # 두 손이 모두 인식되면 가운데에 진행 막대
+    if p1_found and p2_found:
+        bar_w, bar_h = int(320 * s), int(12 * s)
+        x1, y1 = center_x - bar_w // 2, int(h * 0.52)
+        _pill(frame, "Both hands ready!", center_x, y1 - int(34 * s), 0.8 * s, ACCENT, NAVY, 0.88,
+              int(20 * s), int(10 * s), thickness=max(1, int(2 * s)))
+        _panel(frame, x1, y1, x1 + bar_w, y1 + bar_h, NAVY, 0.85, bar_h // 2)
+        fill_w = int(bar_w * max(0.0, min(1.0, progress)))
+        if fill_w > bar_h:
+            _rounded_rect(frame, x1, y1, x1 + fill_w, y1 + bar_h, bar_h // 2, ACCENT, -1)
+
+    _draw_allowed_hands(frame, s)
+    return frame
+
+
+# ---------------------------------------------------------------------------
+# 게임 종료 후 리포트 화면 (#5)
+# ---------------------------------------------------------------------------
+
+REPORT_HANDS = ("rock", "scissors", "paper")   # 리포트 표에 보여 줄 순서
+
+
+def _report_card_rect(frame):
+    """리포트 카드의 (x1, y1, x2, y2). 그리기와 QUIT 버튼 위치 계산에 같이 쓴다."""
+    h, w = frame.shape[:2]
+    s = _ui_scale(frame)
+    center_x = get_center_x(frame)
+    card_w, card_h = int(900 * s), int(560 * s)
+    x1 = center_x - card_w // 2
+    y1 = h // 2 - card_h // 2 - int(20 * s)
+    return x1, y1, x1 + card_w, y1 + card_h
+
+
+def get_report_quit_button(frame):
+    """리포트 화면의 QUIT 버튼: 리포트 카드 아래쪽 가운데."""
+    s = _ui_scale(frame)
+    x1, y1, x2, y2 = _report_card_rect(frame)
+    button_w, button_h = int(180 * s), int(52 * s)
+    return make_button("QUIT", (x1 + x2) // 2 - button_w // 2, y2 - button_h - int(26 * s), button_w, button_h)
+
+
+def is_report_quit_clicked(frame, click):
+    """리포트 화면의 QUIT 버튼을 눌렀으면 True."""
+    return is_clicked(get_report_quit_button(frame), click)
+
+
+def _format_hand_stat(stat):
+    """records.calculate_hand_stats()의 손모양 하나 → (낸 횟수, 이긴 횟수, 승률 글자)."""
+    count = int(stat.get("count", 0)) if stat else 0
+    wins = int(stat.get("wins", 0)) if stat else 0
+    rate = f"{round(wins / count * 100)}%" if count > 0 else "-"
+    return str(count), str(wins), rate
+
+
+def draw_report(frame, winner, p1_score, p2_score, stats):
+    """게임이 끝난 뒤 승자와 플레이어별 손모양 승률 리포트를 그린다.
+
+    winner: "P1", "P2", "DRAW"
+    p1_score, p2_score: 최종 점수
+    stats: records.calculate_hand_stats()가 돌려준 값
+           {"P1": {"rock": {"count": 3, "wins": 2, ...}, ...}, "P2": {...}}
+           None이면 기록이 없다고 표시한다.
+    아래에 QUIT 버튼(누르면 창 닫기)과 R(다시 하기) 키 안내를 그린다.
+    """
+    h, w = frame.shape[:2]
+    s = _ui_scale(frame)
+    color = RESULT_COLOR.get(winner, WHITE)
+    _dim(frame, 0.6)
+
+    x1, y1, x2, y2 = _report_card_rect(frame)
+    center_x = (x1 + x2) // 2
+    _panel(frame, x1, y1, x2, y2, NAVY, 0.92, int(28 * s), color, max(2, int(3 * s)))
+
+    # 위: 승자와 최종 점수
+    title = "DRAW" if winner == "DRAW" else f"{winner} WINS!"
+    _text(frame, "GAME OVER", center_x, y1 + int(46 * s), 0.7 * s, MUTED, max(1, int(2 * s)))
+    _text_mid(frame, title, center_x - int(90 * s), y1 + int(100 * s), 1.6 * s, color, max(3, int(4 * s)))
+    score_x = center_x + int(190 * s)
+    _text_mid(frame, str(p1_score), score_x - int(50 * s), y1 + int(100 * s), 1.4 * s, P1_COLOR,
+              max(2, int(3 * s)))
+    _text_mid(frame, ":", score_x, y1 + int(100 * s), 1.2 * s, MUTED, max(2, int(2 * s)))
+    _text_mid(frame, str(p2_score), score_x + int(50 * s), y1 + int(100 * s), 1.4 * s, P2_COLOR,
+              max(2, int(3 * s)))
+
+    line_y = y1 + int(150 * s)
+    cv2.line(frame, (x1 + int(40 * s), line_y), (x2 - int(40 * s), line_y), MUTED, 1, AA)
+    _text(frame, "Hand stats (this session)", center_x, line_y + int(36 * s), 0.65 * s, MUTED, 1, FONT)
+
+    # 가운데: 플레이어별 손모양 표 (손모양 / 낸 횟수 / 이긴 횟수 / 승률)
+    if stats is None:
+        _text_mid(frame, "No records yet", center_x, line_y + int(130 * s), 0.9 * s, YELLOW,
+                  max(1, int(2 * s)))
+    else:
+        half_w = (x2 - x1) // 2
+        cols = (0.20, 0.47, 0.67, 0.86)          # 각 반쪽 안에서 열 가운데 위치(비율)
+        headers = ("Hand", "Played", "Wins", "Win %")
+        for i, (player, pcolor) in enumerate((("P1", P1_COLOR), ("P2", P2_COLOR))):
+            left = x1 + i * half_w
+            top = line_y + int(80 * s)
+            _text(frame, player, left + int(half_w * 0.5), top, 0.8 * s, pcolor, max(1, int(2 * s)))
+            for col, head in zip(cols, headers):
+                _text(frame, head, left + int(half_w * col), top + int(36 * s), 0.55 * s, MUTED, 1, FONT)
+            for row, hand in enumerate(REPORT_HANDS):
+                y = top + int(76 * s) + row * int(40 * s)
+                values = (HAND_NAMES[hand],) + _format_hand_stat(stats.get(player, {}).get(hand))
+                for col, value in zip(cols, values):
+                    _text(frame, value, left + int(half_w * col), y, 0.7 * s, WHITE, max(1, int(2 * s)), FONT)
+        # 두 플레이어 사이 세로선
+        cv2.line(frame, (center_x, line_y + int(60 * s)), (center_x, line_y + int(250 * s)), MUTED, 1, AA)
+
+    # 아래: QUIT 버튼과 다시 하기 키 안내
+    draw_button(frame, get_report_quit_button(frame), P2_COLOR)
+    _key_hint(frame, [("R", True), ("play again", False), ("Q", True), ("quit", False)],
+              center_x, y2 + int(34 * s), s)
+    return frame

@@ -17,10 +17,12 @@ def main():
     cap = open_camera()
     ui.enable_mouse()
 
-    state = "GUIDE"            # GUIDE → SELECT → PLAY → OVER  (ui.py 흐름 그대로)
+    state = "GUIDE"            # GUIDE → CHECK → SELECT → PLAY → OVER  (ui.py 흐름 그대로)
     match = Match(3)
     game_id = 0                # 몇 번째 게임인지 구분하기 위한 변수
     countdown_start = None
+    check_start = None         # 손 인식 확인: 두 손이 함께 보이기 시작한 시각
+    report_stats = None        # 리포트 화면에 보여 줄 손모양 통계 (게임이 끝날 때 한 번 읽음)
     result_info = None         # (p1_hand, p2_hand, result, 보여 주기 시작한 시각, 판정한 라운드 번호)
     frozen_frame = None         # 카운트다운 종료에 저장할 웹캠 프레임
 
@@ -46,7 +48,21 @@ def main():
             if state == "GUIDE":
                 frame = ui.draw_guide(frame)
                 if ui.is_start_clicked(frame, click):
-                    state = "SELECT"
+                    state, check_start = "CHECK", None
+
+            elif state == "CHECK":
+                # 두 영역 모두 손이 잡힌 상태가 HAND_CHECK_SECONDS 동안 이어지면 판수 선택으로
+                p1_found = hands["P1"] is not None
+                p2_found = hands["P2"] is not None
+                if p1_found and p2_found:
+                    if check_start is None:
+                        check_start = time.time()
+                else:
+                    check_start = None
+                progress = ui.get_check_progress(check_start)
+                frame = ui.draw_hand_check(frame, p1_found, p2_found, progress)
+                if progress >= 1.0:
+                    state, check_start = "SELECT", None
 
             elif state == "SELECT":
                 frame = ui.draw_best_of_select(frame)
@@ -94,7 +110,8 @@ def main():
                         result_info = (p1_hand, p2_hand, result, time.time(), judged_round)
 
                 if state == "PLAY" and result_info is not None:
-                    frame = ui.draw_round_result(frame, *result_info[:3])
+                    # 마지막 라운드가 아니면 SPACE를 눌러야 넘어가므로 안내를 함께 보여 준다
+                    frame = ui.draw_round_result(frame, *result_info[:3], next_hint=not match.is_over)
 
                     # 마지막 라운드만 2초동안 결과 화면 보여주고 게임 종료로 넘어가기
                     if match.is_over:
@@ -104,7 +121,11 @@ def main():
                             state = "OVER"
 
             elif state == "OVER":
-                frame = ui.draw_game_over(frame, match.winner, match.p1_score, match.p2_score)
+                if report_stats is None:   # 매 프레임 CSV를 읽지 않도록 처음 한 번만 읽는다
+                    report_stats = records.calculate_hand_stats()
+                frame = ui.draw_report(frame, match.winner, match.p1_score, match.p2_score, report_stats)
+                if ui.is_report_quit_clicked(frame, click):   # QUIT 버튼 → 창 닫기
+                    break
 
             key = ui.show_frame(frame)
             if (key == ord(" ") and state == "PLAY"
@@ -114,6 +135,7 @@ def main():
                 countdown_start = ui.start_countdown()
             elif key == ord("r"):
                 state, countdown_start, result_info = "SELECT", None, None
+                report_stats = None
                 frozen_frame = None
             if ui.should_quit(key):
                 break
