@@ -133,8 +133,8 @@ def show_hand_graph():
     """통계를 기반으로 손을 낸 횟수 그래프를 만드는 함수"""
     stats = calculate_hand_stats()
 
-    p1_counts = [stats["P1"][hand]["count"] for hand in hands]
-    p2_counts = [stats["P2"][hand]["count"] for hand in hands]
+    p1_counts = [stats["P1"][hand]["count"] for hand in HANDS]
+    p2_counts = [stats["P2"][hand]["count"] for hand in HANDS]
 
     x = np.arange(len(HANDS))
     width = 0.35

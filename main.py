@@ -112,6 +112,11 @@ def main():
         for player in ["P1", "P2"]:
             for line in report[player]:
                 print(line)
+
+        records.show_hand_graph()
+        records.show_wins_graph()
+        records.show_win_rate_graph()
+
     finally:
         cap.release()
         tracker.close()
