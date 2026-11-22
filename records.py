@@ -1,7 +1,10 @@
 import csv
 import os
 import matplotlib.pyplot as plt
+import matplotlib
 import numpy as np
+
+matplotlib.use("Agg")
 
 records_path = "data/records.csv"
 
@@ -129,7 +132,7 @@ def generate_report():
     return report
 
 
-def show_hand_graph():
+def show_hand_graph(path="data/hand_graph.png"):
     """통계를 기반으로 손을 낸 횟수 그래프를 만드는 함수"""
     stats = calculate_hand_stats()
 
@@ -141,8 +144,8 @@ def show_hand_graph():
 
     plt.figure(figsize=(8, 5))
 
-    plt.bar(x - width/2, p1_counts, width, label="P1")
-    plt.bar(x + width/2, p2_counts, width, label="P2")
+    plt.bar(x - width/2, p1_counts, width, label="P1", color = "#4F6CFF")
+    plt.bar(x + width/2, p2_counts, width, label="P2", color = "#FF6B5F")
 
     plt.xlabel("Hand")
     plt.ylabel("Count")
@@ -152,9 +155,14 @@ def show_hand_graph():
     plt.legend()
 
     plt.tight_layout()
-    plt.show()
 
-def show_wins_graph():
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    plt.savefig(path)
+    plt.close()
+
+    return path
+
+def show_wins_graph(path="data/wins_graph.png"):
     """P1과 P2의 손 모양별 승리 횟수 비교"""
     stats = calculate_hand_stats()
 
@@ -166,18 +174,22 @@ def show_wins_graph():
 
     plt.figure(figsize=(8, 5))
 
-    plt.bar(x - width / 2, p1_wins, width, label="P1")
-    plt.bar(x + width / 2, p2_wins, width, label="P2")
+    plt.bar(x - width / 2, p1_wins, width, label="P1", color = "#4F6CFF")
+    plt.bar(x + width / 2, p2_wins, width, label="P2", color = "#FF6B5F")
 
     plt.xlabel("Hand")
     plt.ylabel("Wins")
     plt.title("Hand Win Statistics")
     plt.xticks(x, [hand.capitalize() for hand in HANDS])
     plt.legend()
-    plt.tight_layout()
-    plt.show()
 
-def show_win_rate_graph():
+    plt.tight_layout()
+
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    return path
+
+def show_win_rate_graph(path="data/win_rate_graph.png"):
     """P1과 P2의 손 모양별 승률 비교"""
     stats = calculate_hand_stats()
 
@@ -198,8 +210,8 @@ def show_win_rate_graph():
 
     plt.figure(figsize=(8, 5))
 
-    plt.bar(x - width / 2, p1_rates, width, label="P1")
-    plt.bar(x + width / 2, p2_rates, width, label="P2")
+    plt.bar(x - width / 2, p1_rates, width, label="P1", color = "#4F6CFF")
+    plt.bar(x + width / 2, p2_rates, width, label="P2", color = "#FF6B5F")
 
     plt.xlabel("Hand")
     plt.ylabel("Win Rate (%)")
@@ -207,5 +219,9 @@ def show_win_rate_graph():
     plt.xticks(x, [hand.capitalize() for hand in HANDS])
     plt.ylim(0, 100)
     plt.legend()
+
     plt.tight_layout()
-    plt.show()
+
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    return path
