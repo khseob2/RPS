@@ -187,6 +187,8 @@ def show_wins_graph(path="data/wins_graph.png"):
     plt.tight_layout()
 
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    plt.savefig(path)
+    plt.close()
 
     return path
 
@@ -224,5 +226,7 @@ def show_win_rate_graph(path="data/win_rate_graph.png"):
     plt.tight_layout()
 
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    plt.savefig(path)
+    plt.close()
 
     return path
