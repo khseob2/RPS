@@ -225,3 +225,8 @@ gesture_landmarks.csv
 
 # 게임 실행 시 생성되는 CSV 기록 파일
 /data/records.csv
+
+# 게임 실행 시 생성되는 그래프 이미지 파일
+/data/hand_graph.png
+/data/wins_graph.png
+/data/win_rate_graph.png
