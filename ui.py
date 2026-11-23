@@ -785,7 +785,25 @@ def _format_hand_stat(stat):
     return str(count), str(wins), rate
 
 
-def draw_report(frame, winner, p1_score, p2_score, stats):
+def next_report_page(page, graphs):
+    """리포트 화면에서 G를 누를 때 다음 페이지 번호. 0(표) → 그래프 1, 2, ... → 다시 0."""
+    total = 1 + (len(graphs) if graphs else 0)
+    return (page + 1) % total
+
+
+def _paste_fit(frame, image, x1, y1, x2, y2):
+    """image를 (x1, y1)~(x2, y2) 영역 안에 비율을 유지한 채 가운데에 붙인다."""
+    box_w, box_h = x2 - x1, y2 - y1
+    img_h, img_w = image.shape[:2]
+    ratio = min(box_w / img_w, box_h / img_h)
+    new_w, new_h = max(1, int(img_w * ratio)), max(1, int(img_h * ratio))
+    resized = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_AREA)
+    left = x1 + (box_w - new_w) // 2
+    top = y1 + (box_h - new_h) // 2
+    frame[top:top + new_h, left:left + new_w] = resized[:, :, :3]
+
+
+def draw_report(frame, winner, p1_score, p2_score, stats, graphs=None, page=0):
     """게임이 끝난 뒤 승자와 플레이어별 손모양 승률 리포트를 그린다.
 
     winner: "P1", "P2", "DRAW"
@@ -793,8 +811,12 @@ def draw_report(frame, winner, p1_score, p2_score, stats):
     stats: records.calculate_hand_stats()가 돌려준 값
            {"P1": {"rock": {"count": 3, "wins": 2, ...}, ...}, "P2": {...}}
            None이면 기록이 없다고 표시한다.
-    아래에 QUIT 버튼(누르면 창 닫기)과 R(다시 하기) 키 안내를 그린다.
+    graphs: records가 저장한 그래프 이미지(cv2.imread 결과) 목록. 없으면 표만 보여 준다.
+    page: 0이면 표, 1 이상이면 graphs[page - 1] 그래프를 보여 준다. (G 키로 넘김)
+    아래에 QUIT 버튼(누르면 창 닫기)과 G(그래프)·R(다시 하기)·Q(종료) 키 안내를 그린다.
     """
+    graphs = graphs or []
+    page = page if 0 <= page <= len(graphs) else 0
     h, w = frame.shape[:2]
     s = _ui_scale(frame)
     color = RESULT_COLOR.get(winner, WHITE)
@@ -817,10 +839,17 @@ def draw_report(frame, winner, p1_score, p2_score, stats):
 
     line_y = y1 + int(150 * s)
     cv2.line(frame, (x1 + int(40 * s), line_y), (x2 - int(40 * s), line_y), MUTED, 1, AA)
-    _text(frame, "Hand stats (this session)", center_x, line_y + int(36 * s), 0.65 * s, MUTED, 1, FONT)
+    subtitle = "Hand stats (this session)"
+    if graphs:
+        subtitle += f"   {page + 1} / {len(graphs) + 1}"
+    _text(frame, subtitle, center_x, line_y + int(36 * s), 0.65 * s, MUTED, 1, FONT)
 
-    # 가운데: 플레이어별 손모양 표 (손모양 / 낸 횟수 / 이긴 횟수 / 승률)
-    if stats is None:
+    # 가운데: 표(page 0) 또는 그래프 이미지(page 1~)
+    if page > 0:
+        quit_top = get_report_quit_button(frame)["rect"][1]
+        _paste_fit(frame, graphs[page - 1], x1 + int(40 * s), line_y + int(56 * s),
+                   x2 - int(40 * s), quit_top - int(14 * s))
+    elif stats is None:
         _text_mid(frame, "No records yet", center_x, line_y + int(130 * s), 0.9 * s, YELLOW,
                   max(1, int(2 * s)))
     else:
@@ -843,6 +872,8 @@ def draw_report(frame, winner, p1_score, p2_score, stats):
 
     # 아래: QUIT 버튼과 다시 하기 키 안내
     draw_button(frame, get_report_quit_button(frame), P2_COLOR)
-    _key_hint(frame, [("R", True), ("play again", False), ("Q", True), ("quit", False)],
-              center_x, y2 + int(34 * s), s)
+    hints = [("R", True), ("play again", False), ("Q", True), ("quit", False)]
+    if graphs:
+        hints = [("G", True), ("graphs" if page == 0 else "next", False)] + hints
+    _key_hint(frame, hints, center_x, y2 + int(34 * s), s)
     return frame
