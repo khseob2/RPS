@@ -29,7 +29,7 @@ def start_records():
         print_save_error("기록 파일 초기화", error)
 
 def append_records(game_id, round, p1_hand, p2_hand, result):
-       """결과를 csv파일에 추가하고 바로 저장하는 함수 (저장에 실패해도 게임은 멈추지 않고 오류 메시지만 출력)"""
+    """결과를 csv파일에 추가하고 바로 저장하는 함수 (저장에 실패해도 게임은 멈추지 않고 오류 메시지만 출력)"""
     try:
         os.makedirs(os.path.dirname(records_path) or ".", exist_ok=True)
 
