@@ -17,7 +17,7 @@ def print_save_error(action, error):
     if isinstance(error, PermissionError):
         print("[기록 오류] 파일이 엑셀 등 다른 프로그램에서 열려 있다면 닫은 뒤 다시 시도하세요.")
 
-def start_records()
+def start_records():
     """게임 시작 시 csv 파일을 초기화하고, 헤더를 작성하는 함수 (data 폴더가 없으면 만들고, 실패하면 오류 메시지만 출력)"""
     try:
         os.makedirs(os.path.dirname(records_path) or ".", exist_ok=True)
