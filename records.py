@@ -55,25 +55,29 @@ def calculate_hand_stats():
                 "win_rate" : "횟수 없음"
             }
 
-    with open(records_path, "r", newline="", encoding="utf-8") as file:
-        reader = csv.DictReader(file)
+    try:
+        with open(records_path, "r", newline="", encoding="utf-8") as file:
+            rows = list(csv.DictReader(file))
+    except FileNotFoundError:
+        print(f"[기록 없음] {records_path} 파일이 없어 모든 횟수를 0으로 처리합니다.")
+        rows = []
 
-        for row in reader:
-            p1_hand = row["p1_hand"].strip().lower()
-            p2_hand = row["p2_hand"].strip().lower()
-            result = row["result"].strip().upper()
+    for row in rows:
+        p1_hand = row["p1_hand"].strip().lower()
+        p2_hand = row["p2_hand"].strip().lower()
+        result = row["result"].strip().upper()
 
-            if p1_hand in HANDS:
-                stats["P1"][p1_hand]["count"] += 1
+        if p1_hand in HANDS:
+            stats["P1"][p1_hand]["count"] += 1
 
-            if p2_hand in HANDS:
-                stats["P2"][p2_hand]["count"] += 1
+        if p2_hand in HANDS:
+            stats["P2"][p2_hand]["count"] += 1
 
-            if result == "P1" and p1_hand in HANDS:
-                stats["P1"][p1_hand]["wins"] += 1
+        if result == "P1" and p1_hand in HANDS:
+            stats["P1"][p1_hand]["wins"] += 1
 
-            elif result == "P2" and p2_hand in HANDS:
-                stats["P2"][p2_hand]["wins"] += 1
+        elif result == "P2" and p2_hand in HANDS:
+            stats["P2"][p2_hand]["wins"] += 1
 
     for player in stats:
         for hand in HANDS:
@@ -94,21 +98,25 @@ def generate_report():
     total_rounds = {"P1": 0, "P2": 0}
     total_wins = {"P1": 0, "P2": 0}
 
-    with open(records_path, "r", newline="", encoding="utf-8") as file:
-        reader = csv.DictReader(file)
-        rows = list(reader)
-        total_games = len({row["game_id"] for row in rows})
+    try:
+        with open(records_path, "r", newline="", encoding="utf-8") as file:
+            rows = list(csv.DictReader(file))
+    except FileNotFoundError:
+        # 안내 메시지는 calculate_hand_stats()에서 이미 출력했으므로 기록 없음으로만 처리
+        rows = []
 
-        for row in rows:
-            result = row["result"].strip().upper()
+    total_games = len({row["game_id"] for row in rows})
 
-            total_rounds["P1"] += 1
-            total_rounds["P2"] += 1
+    for row in rows:
+        result = row["result"].strip().upper()
 
-            if result == "P1":
-                total_wins["P1"] += 1
-            elif result == "P2":
-                total_wins["P2"] += 1
+        total_rounds["P1"] += 1
+        total_rounds["P2"] += 1
+
+        if result == "P1":
+            total_wins["P1"] += 1
+        elif result == "P2":
+            total_wins["P2"] += 1
     
     report = {}
     
