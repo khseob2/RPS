@@ -11,17 +11,39 @@ from hand_tracker import HandTracker, draw_hand, open_camera
 RESULT_SHOW_SECONDS = 2    # 라운드 결과를 보여 주는 시간(초)
 
 
+def load_report_graphs():
+    """records가 그래프 3장을 PNG로 저장하게 한 뒤, 화면에 붙일 수 있게 읽어 온다.
+
+    그래프를 만들거나 읽지 못해도 게임이 멈추지 않도록, 실패한 그래프는 빼고 돌려준다.
+    """
+    graphs = []
+    for make_graph in (records.show_hand_graph, records.show_wins_graph, records.show_win_rate_graph):
+        try:
+            image = cv2.imread(make_graph())
+        except Exception as error:   # matplotlib 오류 등
+            print(f"그래프를 만들지 못했습니다: {error}")
+            continue
+        if image is not None:
+            graphs.append(image)
+    return graphs
+
+
 def main():
     records.start_records()
     tracker = HandTracker()
     cap = open_camera()
     ui.enable_mouse()
 
-    state = "GUIDE"            # GUIDE → SELECT → PLAY → OVER  (ui.py 흐름 그대로)
+    state = "GUIDE"            # GUIDE → CHECK → SELECT → PLAY → OVER  (ui.py 흐름 그대로)
     match = Match(3)
     game_id = 0                # 몇 번째 게임인지 구분하기 위한 변수
     countdown_start = None
+    check_start = None         # 손 인식 확인: 두 손이 함께 보이기 시작한 시각
+    report_stats = None        # 리포트 화면에 보여 줄 손모양 통계 (게임이 끝날 때 한 번 읽음)
+    report_graphs = []         # 리포트 화면에 보여 줄 그래프 이미지 (게임이 끝날 때 한 번 만듦)
+    report_page = 0            # 0: 표, 1~: 그래프 (G 키로 넘김)
     result_info = None         # (p1_hand, p2_hand, result, 보여 주기 시작한 시각, 판정한 라운드 번호)
+    frozen_frame = None         # 카운트다운 종료에 저장할 웹캠 프레임
 
     try:
         while True:
@@ -45,7 +67,21 @@ def main():
             if state == "GUIDE":
                 frame = ui.draw_guide(frame)
                 if ui.is_start_clicked(frame, click):
-                    state = "SELECT"
+                    state, check_start = "CHECK", None
+
+            elif state == "CHECK":
+                # 두 영역 모두 손이 잡힌 상태가 HAND_CHECK_SECONDS 동안 이어지면 판수 선택으로
+                p1_found = hands["P1"] is not None
+                p2_found = hands["P2"] is not None
+                if p1_found and p2_found:
+                    if check_start is None:
+                        check_start = time.time()
+                else:
+                    check_start = None
+                progress = ui.get_check_progress(check_start)
+                frame = ui.draw_hand_check(frame, p1_found, p2_found, progress)
+                if progress >= 1.0:
+                    state, check_start = "SELECT", None
 
             elif state == "SELECT":
                 frame = ui.draw_best_of_select(frame)
@@ -56,6 +92,8 @@ def main():
                     state = "PLAY"
 
             elif state == "PLAY":
+                if frozen_frame is not None and result_info is not None:
+                    frame = frozen_frame.copy()  # 판정 결과가 있으면 저장된 화면 보여주기
                 # 결과를 보여 주는 동안에는 방금 판정한 라운드 번호를 그대로 보여 준다
                 shown_round = result_info[4] if result_info is not None else match.round_no
                 frame = ui.draw_scoreboard(frame, match.p1_score, match.p2_score,
@@ -64,6 +102,7 @@ def main():
                 if ui.is_quit_clicked(frame, click):  # 중간 종료 → 누적 점수로 승자 결정
                     match.finish()
                     state, countdown_start, result_info = "OVER", None, None
+                    frozen_frame = None
 
                 if countdown_start is not None:
                     text = ui.get_countdown_text(countdown_start)
@@ -71,6 +110,7 @@ def main():
                     if text is None:
                         # 카운트다운이 끝난 순간의 손모양으로 판정
                         countdown_start = None
+                        frozen_frame = frame.copy()  # 판정 순간 웹캠 화면 저장
                         p1_hand = classify_hand(hands["P1"])
                         p2_hand = classify_hand(hands["P2"])
                         result = judge(p1_hand, p2_hand)
@@ -89,21 +129,38 @@ def main():
                         result_info = (p1_hand, p2_hand, result, time.time(), judged_round)
 
                 if state == "PLAY" and result_info is not None:
-                    frame = ui.draw_round_result(frame, *result_info[:3])
-                    if time.time() - result_info[3] >= RESULT_SHOW_SECONDS:
-                        result_info = None
-                        if match.is_over:
+                    # 마지막 라운드가 아니면 SPACE를 눌러야 넘어가므로 안내를 함께 보여 준다
+                    frame = ui.draw_round_result(frame, *result_info[:3], next_hint=not match.is_over)
+
+                    # 마지막 라운드만 2초동안 결과 화면 보여주고 게임 종료로 넘어가기
+                    if match.is_over:
+                        if time.time() - result_info[3] >= RESULT_SHOW_SECONDS:
+                            result_info = None
+                            frozen_frame = None
                             state = "OVER"
 
             elif state == "OVER":
-                frame = ui.draw_game_over(frame, match.winner, match.p1_score, match.p2_score)
+                if report_stats is None:   # 매 프레임 CSV를 읽지 않도록 처음 한 번만 읽는다
+                    report_stats = records.calculate_hand_stats()
+                    report_graphs = load_report_graphs()
+                    report_page = 0
+                frame = ui.draw_report(frame, match.winner, match.p1_score, match.p2_score, report_stats,
+                                       report_graphs, report_page)
+                if ui.is_report_quit_clicked(frame, click):   # QUIT 버튼 → 창 닫기
+                    break
 
             key = ui.show_frame(frame)
             if (key == ord(" ") and state == "PLAY"
-                    and countdown_start is None and result_info is None):
+                    and countdown_start is None and not match.is_over):
+                frozen_frame = None
+                result_info = None
                 countdown_start = ui.start_countdown()
+            elif key == ord("g") and state == "OVER":
+                report_page = ui.next_report_page(report_page, report_graphs)
             elif key == ord("r"):
                 state, countdown_start, result_info = "SELECT", None, None
+                report_stats = None
+                frozen_frame = None
             if ui.should_quit(key):
                 break
 
@@ -112,6 +169,11 @@ def main():
         for player in ["P1", "P2"]:
             for line in report[player]:
                 print(line)
+
+        records.show_hand_graph()
+        records.show_wins_graph()
+        records.show_win_rate_graph()
+
     finally:
         cap.release()
         tracker.close()
