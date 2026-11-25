@@ -42,7 +42,7 @@ def append_records(game_id, round, p1_hand, p2_hand, result):
         print_save_error("라운드 결과 저장", error)
 
 def calculate_hand_stats():
-       """CSV 기록을 읽어 플레이어 별 손모양 통계를 반환하는 함수 (기록 파일이 없으면 모든 횟수를 0으로 처리)"""
+    """CSV 기록을 읽어 플레이어 별 손모양 통계를 반환하는 함수 (기록 파일이 없으면 모든 횟수를 0으로 처리)"""
 
     stats = { "P1" : {},
               "P2" : {} }
