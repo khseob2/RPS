@@ -17,8 +17,8 @@ def print_save_error(action, error):
     if isinstance(error, PermissionError):
         print("[기록 오류] 파일이 엑셀 등 다른 프로그램에서 열려 있다면 닫은 뒤 다시 시도하세요.")
 
-def start_records():
-    """게임 시작 시 csv 파일을 초기화하고, 헤더를 작성하는 함수"""
+def start_records()
+    """게임 시작 시 csv 파일을 초기화하고, 헤더를 작성하는 함수 (data 폴더가 없으면 만들고, 실패하면 오류 메시지만 출력)"""
     try:
         os.makedirs(os.path.dirname(records_path) or ".", exist_ok=True)
 
@@ -29,7 +29,7 @@ def start_records():
         print_save_error("기록 파일 초기화", error)
 
 def append_records(game_id, round, p1_hand, p2_hand, result):
-    """결과를 csv파일에 추가하고 바로 저장하는 함수"""
+       """결과를 csv파일에 추가하고 바로 저장하는 함수 (저장에 실패해도 게임은 멈추지 않고 오류 메시지만 출력)"""
     try:
         os.makedirs(os.path.dirname(records_path) or ".", exist_ok=True)
 
@@ -42,7 +42,7 @@ def append_records(game_id, round, p1_hand, p2_hand, result):
         print_save_error("라운드 결과 저장", error)
 
 def calculate_hand_stats():
-    """CSV 기록을 읽어 플레이어 별 손모양 통계를 반환하는 함수"""
+       """CSV 기록을 읽어 플레이어 별 손모양 통계를 반환하는 함수 (기록 파일이 없으면 모든 횟수를 0으로 처리)"""
 
     stats = { "P1" : {},
               "P2" : {} }
