@@ -58,28 +58,3 @@ def detect_finger_states(landmarks):
         states[name] = tip_dist > pip_dist
 
     return states
-
-
-# 간단한 동작 테스트
-if __name__ == "__main__":
-    
-    # 테스트용 가상 랜드마크
-    points = [
-        (0.5, 0.5, 0.0)
-        for _ in range(21)
-    ]
-
-    # 검지만 펼친 상태를 가정
-    points[8] = (0.5, 0.1, 0.0)
-    points[6] = (0.5, 0.3, 0.0)
-
-    result = detect_finger_states(points)
-    gesture = classify_hand(points)
-    print("가위바위보 판정:", gesture)
-
-    for finger, extended in result.items():
-        print(f"{finger}: {'펴짐' if extended else '접힘'}")
-
-    print("손 인식 실패:", classify_hand(None))
-    print("빈 랜드마크:", classify_hand([]))
-    print("랜드마크 부족:", classify_hand(points[:10]))
