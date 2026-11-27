@@ -23,8 +23,6 @@ PINKY_MCP, PINKY_PIP, PINKY_DIP, PINKY_TIP = 17, 18, 19, 20
 
 HAND_CONNECTIONS = [(c.start, c.end) for c in vision.HandLandmarksConnections.HAND_CONNECTIONS]
 
-PLAYER_COLORS = {"P1": (255, 128, 0), "P2": (0, 0, 255)}
-
 
 def ensure_model(path=MODEL_PATH):
     if os.path.exists(path):
@@ -97,16 +95,6 @@ def draw_hand(frame, points, color):
         cv2.circle(frame, to_pixel(p, w, h), 4, color, -1)
 
 
-def draw_players(frame, hands):
-    h, w = frame.shape[:2]
-    cv2.line(frame, (w // 2, 0), (w // 2, h), (255, 255, 255), 2)
-    cv2.putText(frame, "P1", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.2, PLAYER_COLORS["P1"], 3)
-    cv2.putText(frame, "P2", (w - 80, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.2, PLAYER_COLORS["P2"], 3)
-    for name, points in hands.items():
-        if points is not None:
-            draw_hand(frame, points, PLAYER_COLORS[name])
-
-
 def open_camera(index=0, width=1280, height=720):
     if os.name == "nt":
         cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
@@ -117,38 +105,3 @@ def open_camera(index=0, width=1280, height=720):
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
     return cap
-
-
-if __name__ == "__main__":
-    tracker = HandTracker()
-    cap = open_camera()
-    last_print = 0.0
-    try:
-        while True:
-            ok, frame = cap.read()
-            if not ok:
-                print("웹캠 프레임을 읽지 못했습니다.")
-                break
-
-            frame = cv2.flip(frame, 1)
-            hands = tracker.detect(frame)
-
-            if time.monotonic() - last_print >= 0.5:
-                last_print = time.monotonic()
-                for name in ("P1", "P2"):
-                    points = hands[name]
-                    if points is None:
-                        print(f"{name}: None")
-                    else:
-                        x, y, _ = points[WRIST]
-                        print(f"{name}: 관절 {len(points)}개, 손목 ({x:.2f}, {y:.2f})")
-                print("-" * 30)
-
-            draw_players(frame, hands)
-            cv2.imshow("hand_tracker test", frame)
-            if cv2.waitKey(1) & 0xFF == 27:
-                break
-    finally:
-        cap.release()
-        tracker.close()
-        cv2.destroyAllWindows()

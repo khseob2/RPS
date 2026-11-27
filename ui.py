@@ -38,13 +38,6 @@ BUTTON_COLOR = NAVY           # 버튼 바탕색
 _clicks = []  # 마우스로 클릭한 좌표가 쌓이는 곳 (내부용)
 
 
-def open_camera(index=0):
-    """웹캠을 열어 VideoCapture 객체를 돌려준다. 못 열면 RuntimeError."""
-    cap = cv2.VideoCapture(index)
-    if not cap.isOpened():
-        raise RuntimeError("Cannot open webcam")
-    return cap
- 
  
 def show_frame(frame):
     """프레임을 창에 그리고, 눌린 키 값을 돌려준다(안 눌렸으면 255)."""
@@ -132,11 +125,6 @@ def _text_mid(frame, text, center_x, center_y, scale, color, thickness, font=TIT
     """글자의 세로 가운데가 center_y에 오도록 그린다."""
     _, th = _text_size(text, scale, thickness, font)
     _text(frame, text, center_x, center_y + th // 2, scale, color, thickness, font, shadow)
-
-
-def _put_centered(frame, text, center_x, y, scale, color, thickness):
-    """center_x를 가운데로 해서 글자를 그린다. (예전 함수 이름 그대로 남겨 둠, 내부용)"""
-    _text(frame, text, center_x, y, scale, color, thickness, FONT)
 
 
 def _pill(frame, text, center_x, center_y, scale, text_color, fill, alpha=0.85, pad_x=18, pad_y=10,
@@ -466,37 +454,6 @@ def is_quit_clicked(frame, click):
     return is_clicked(get_quit_button(frame), click)
 
 
-def draw_game_over(frame, winner, p1_score, p2_score):
-    """게임이 끝났을 때 최종 결과 카드를 그린다. 아래에 r(다시)·q(종료) 키 안내도 그린다.
-
-    winner: "P1", "P2", "DRAW" (누가 이겼는지는 game.py가 정해서 넘겨준다)
-    p1_score, p2_score: 최종 점수
-    """
-    h, w = frame.shape[:2]
-    s = _ui_scale(frame)
-    center_x = get_center_x(frame)
-    mid_y = h // 2
-    color = RESULT_COLOR.get(winner, WHITE)
-    _dim(frame, 0.55)
-
-    card_w, card_h = int(560 * s), int(330 * s)
-    x1, y1 = center_x - card_w // 2, mid_y - card_h // 2
-    _panel(frame, x1, y1, x1 + card_w, y1 + card_h, NAVY, 0.9, int(28 * s), color, max(2, int(3 * s)))
-
-    title = "DRAW" if winner == "DRAW" else f"{winner} WINS!"
-    _text(frame, "GAME OVER", center_x, y1 + int(62 * s), 0.75 * s, MUTED, max(1, int(2 * s)))
-    _text_mid(frame, title, center_x, y1 + int(135 * s), 2.0 * s, color, max(3, int(5 * s)))
-
-    score_y = y1 + int(225 * s)
-    _text_mid(frame, str(p1_score), center_x - int(70 * s), score_y, 1.8 * s, P1_COLOR, max(2, int(4 * s)))
-    _text_mid(frame, ":", center_x, score_y, 1.5 * s, MUTED, max(2, int(3 * s)))
-    _text_mid(frame, str(p2_score), center_x + int(70 * s), score_y, 1.8 * s, P2_COLOR, max(2, int(4 * s)))
-
-    _key_hint(frame, [("R", True), ("play again", False), ("Q", True), ("quit", False)],
-              center_x, y1 + card_h - int(36 * s), s)
-    return frame
-
-
 GUIDE_LINES = [
     "P1 stands on the LEFT, P2 on the RIGHT",
     "Click 3 / 5 / 7 to choose rounds",
@@ -542,90 +499,6 @@ def draw_guide(frame):
 def is_start_clicked(frame, click):
     """START 버튼을 눌렀으면 True."""
     return is_clicked(get_start_button(frame), click)
-
-
-if __name__ == "__main__":
-    # 혼자 실행해서 화면이 뜨는지 확인하는 테스트용 코드 (나중에는 game.py/main.py가 이 역할을 한다)
-    #   START 클릭 → 판수 버튼 클릭 → SPACE: 한 판 시작 → 누가 먼저 필요 승수에 닿거나 QUIT 버튼을 누르면 게임 끝
-    #   r: 판수 선택으로 돌아가기 / q: 종료
-    import random
-
-    def demo_judge(a, b):
-        """테스트용 판정. 실제 판정은 game.py가 한다."""
-        if a == b:
-            return "DRAW"
-        return "P1" if (a, b) in (("rock", "scissors"), ("scissors", "paper"), ("paper", "rock")) else "P2"
-
-    RESULT_SHOW_SECONDS = 2
-
-    cap = open_camera()
-    enable_mouse()
-    state = "GUIDE"             # GUIDE → SELECT → PLAY → OVER
-    best_of = 3
-    countdown_start = None
-    result_info = None          # (p1_hand, p2_hand, result, 보여 주기 시작한 시각)
-    p1_score, p2_score, round_no = 0, 0, 1
-    while True:
-        ok, frame = cap.read()
-        if not ok:
-            break
-        frame = cv2.flip(frame, 1)  # 거울처럼 좌우 반전
-        frame = draw_split_screen(frame)
-        click = get_click()
-
-        if state == "GUIDE":
-            frame = draw_guide(frame)
-            if is_start_clicked(frame, click):
-                state = "SELECT"
-
-        elif state == "SELECT":
-            frame = draw_best_of_select(frame)
-            chosen = get_clicked_best_of(frame, click)
-            if chosen is not None:
-                best_of, state = chosen, "PLAY"
-                p1_score, p2_score, round_no = 0, 0, 1
-
-        elif state == "PLAY":
-            frame = draw_scoreboard(frame, p1_score, p2_score, round_no, best_of)
-            frame = draw_quit_button(frame)
-            if is_quit_clicked(frame, click):  # 중간 종료 → 지금까지의 점수로 끝
-                state, countdown_start, result_info = "OVER", None, None
-            if countdown_start is not None:
-                text = get_countdown_text(countdown_start)
-                frame = draw_countdown(frame, text)
-                if text is None:  # 카운트다운 끝 → 판정
-                    countdown_start = None
-                    a, b = random.choice(["rock", "paper", "scissors"]), random.choice(["rock", "paper", "scissors"])
-                    res = demo_judge(a, b)
-                    p1_score += res == "P1"
-                    p2_score += res == "P2"
-                    result_info = (a, b, res, time.time())
-
-            if state == "PLAY" and result_info is not None:
-                frame = draw_round_result(frame, *result_info[:3])
-                if time.time() - result_info[3] >= RESULT_SHOW_SECONDS:
-                    result_info = None
-                    round_no += 1
-                    if max(p1_score, p2_score) >= best_of // 2 + 1:
-                        state = "OVER"
-
-        elif state == "OVER":
-            # 테스트용 승자 판별 (실제로는 game.py가 정한다). 동점이면 DRAW
-            if p1_score == p2_score:
-                winner = "DRAW"
-            else:
-                winner = "P1" if p1_score > p2_score else "P2"
-            frame = draw_game_over(frame, winner, p1_score, p2_score)
-
-        key = show_frame(frame)
-        if key == ord(" ") and state == "PLAY" and countdown_start is None and result_info is None:
-            countdown_start = start_countdown() 
-        elif key == ord("r"):
-            state, countdown_start, result_info = "SELECT", None, None
-        if should_quit(key):
-            break
-    cap.release()
-    cv2.destroyAllWindows()
 
 
 # ---------------------------------------------------------------------------

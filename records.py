@@ -10,12 +10,6 @@ records_path = "data/records.csv"
 
 header = ["game_id", "round", "p1_hand", "p2_hand", "result"]
 
-WIN_RULES = {
-    "rock": "scissors",
-    "scissors": "paper",
-    "paper": "rock",
-}
-
 HANDS = ["rock", "paper", "scissors"]
 
 
